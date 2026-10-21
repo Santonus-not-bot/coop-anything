@@ -1539,3 +1539,68 @@ the code that installs them, call chains back to the program entry. Exe file onl
 - Which screen presses 3 and 4 answer (not seen).
 - The sandbox cloud's write path in the real game: no autosave happened (covered by the
   offline test only).
+
+## Session 2026-10-21 z: the player character in memory; each copy saves to its own cloud
+
+### Observations (static)
+
+- `Teleport` (console handler `19C052C`, "Teleports player to <x><y><z>") takes the
+  player as `[[GameClient]+0x888]` (GameClient pointer at RVA `26FFA98`), reads the
+  current position as three floats at `+0xAC`, and passes `+0xB8` as the rotation when it
+  builds the new transform. `Player.SetOrientation` (`19BFA70`) converts angles to a
+  quaternion (`114A1C0`) and writes it through `EF690`/`1152DE4` on the same object.
+  `Player.GetPos` and `Player.GetOrientation` live in the Denuvo section (`.bss`), not
+  readable.
+- The damage handler `2E4BE8` (where ReaperAnon's health pattern sits, store at `2E4D26`)
+  keeps max health at `+0x428`, health at `+0x42C`, health/max at `+0x430`, a dead flag
+  at `+0x4A0`. Player methods next to `Teleport` (`19B39E4`, `19B3EE0`) call it with
+  `[player+0x26A8]`.
+- `Player.Save` (`19C0984`, 33 bytes) calls `42D9A8(player)`, which (if a global flag at
+  `2672D91` is set and `player+0x3879` is clear) arms a timer at `player+0x3850` with
+  0.5 s (`FF0B4`: start time, duration, a cleared field, a running flag).
+
+### Change (sow-coop, local)
+
+- Probe `player` (read-only): position, rotation, health, max, fraction by that chain.
+- Probe `pad <buttons> <lx> <ly> <rx> <ry> <ms>`: hold virtual pad input (probe_write=1).
+- Probe `save`: once the world has started, the next pad read runs `Player.Save` after
+  checking its 33 bytes and GameClient reference (probe_write=1).
+- Offline tests with stand-ins of the same layout and byte shape: 35/35, mutant 12/12.
+
+### Observations (live, unattended, copies A and B)
+
+- `player` in A: position (23987.971, 43092.539, 12789.801), rotation
+  (0, 0.9833, 0, 0.1822), health 708 of 708, fraction 1.000.
+- Left stick forward 2 s: position (+48.4, 0, -86.9); left stick right 1.5 s: (-315.5,
+  0, -69.0) more and rotation (0, 0.7686, 0, -0.6397); 2 s after release it moved 3 more
+  units and stopped. The middle coordinate stayed 43092.539 throughout.
+- The freecam mod's camera chain (`GameClient+0x898`, `+0x50`, `+0x98`) led to text, not
+  a pointer, in this state; not used.
+- The game reads the pad on one thread and logs the world start on another (A: 20172
+  and 27508 in one run, 33432 and 21436 in the next; B: 10564 and 24464). All game-logic
+  log lines come from the second.
+- Both copies in the world; B's player at (-1801.088, 44902.633, 37119.199), rotation
+  (0, 1, 0, 0), health 708 of 708.
+- `save` in A: the handler ran on the pad thread, `Player.Save returned`; 531 ms later the
+  game rotated A's local slots and `sandbox cloud FileWrite('\<prefix>_ShadowOfWar.sav') ->
+  2360880 bytes written`. A's cloud file changed (new hash); B's did not.
+- `save` in B 16 s later: same pattern 532 ms after the request, 2,360,512 bytes into
+  B's cloud (before: the 2025-11-17 file, 2,328,976 bytes). A's unchanged.
+- No FATAL, PROTECTED or WATCH line. Backup check after the stop: unchanged.
+
+### Derived
+
+- Player: `[[GameClient]+0x888]`; position float3 at `+0xAC` (Y is up), rotation
+  quaternion (x, y, z, w) at `+0xB8` (yaw only while walking). Character for health:
+  `[player+0x26A8]`, health `+0x42C`, max `+0x428`. Position and rotation are confirmed by
+  movement; health only by a consistent reading (708/708, fraction 1.0), not by a change.
+- Each copy now saves into its own cloud folder; with the load path from session y, each
+  copy keeps its own progress across runs.
+- `Player.Save` from the pad thread: the save happens ~0.5 s later on the game's own
+  schedule, as its delay suggests.
+
+### Unknown
+
+- The units (the stick moved the player ~100 units in 2 s and ~320 in 1.5 s, so likely
+  centimetres with acceleration, not checked).
+- Whether health changes as expected when the player is hit.
