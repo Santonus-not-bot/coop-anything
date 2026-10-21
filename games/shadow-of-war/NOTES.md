@@ -1393,7 +1393,11 @@ the code that installs them, call chains back to the program entry. Exe file onl
 - Whether Steam treats two processes of one app on one account differently once the
   game calls more Steam APIs (achievements, stats, friends).
 
-## Session 2026-10-21 x: achievements blocked; both copies in the world with different saves
+## Session 2026-10-21 x: achievements blocked; both copies in the world (same save, see y)
+
+> Correction (session y): both copies loaded the same save here, the cloud copy Steam
+> serves from the real Steam folder (the 2025-11-20 save), not their sandbox saves. Their
+> results differ only by the play after the load. The stats observation stands.
 
 ### Change (sow-coop, local)
 
@@ -1464,3 +1468,74 @@ the code that installs them, call chains back to the program entry. Exe file onl
 
 - Whether a further instance check appears with the online features on (they are
   offline here).
+
+## Session 2026-10-21 y: unattended loading; the game loads its save from the Steam cloud
+
+### Observations (static)
+
+- Menu path (reported by the person who loaded saves by hand): title "press any key",
+  then the campaign list. One real pad drove both copies at once, so the game reads
+  XInput even when its window is not focused.
+- Console registry: `PlayerInput.SetSimInput` "Runs the listed commands in order, once
+  per frame" (menu commands `MenuEnter`, `MenuEscape`, `MenuUp`/`Down`/`Left`/`Right`,
+  `MessageBoxConfirm`, ...); command-line options `SkipSplashScreens`,
+  `MenuUI.SkipUserConfig`, `runworld`.
+- Command line: with no arguments the engine reads `..\cmdline.txt` (relative to `x64\`).
+  The parser (`117DE6C`) runs `+Name arg arg` as the console line `(Name) (arg) (arg)`
+  through `1182FA4`, at engine start-up (`117CF30`). `SetSimInput`'s handler (`17B880C`)
+  does nothing while `GameClient+0x888` (player input) is null, which it is that early.
+  Not used.
+- Input APIs named in the import table: `RegisterRawInputDevices`/`GetRawInputData`
+  (keyboard and mouse are Raw Input, so posted key messages would not reach the game),
+  `XInputGetState`/`XInputSetState` from `XINPUT9_1_0.dll`, `GetActiveWindow`,
+  `GetForegroundWindow`.
+- No debug-print channel reports menu screens. Two markers: `[GAMEMODE|SESSION]: Load:`
+  when the campaign's save has been read, `[QUESTMGR]: GameModeSet - SinglePlayer` when
+  the world starts.
+
+### Change (sow-coop, local)
+
+- `autoload=1`: a virtual pad on XInput user 0. The guard finds the game's
+  `XInputGetState` slot in the rebuilt import table (RVA `1D93098`, start of `.xtext`,
+  filled ~190 ms after start) and points it at its own function, which adds A presses to
+  whatever a real pad reports. Presses start 20 s after the game window appears, then
+  every 8 s, until `GameModeSet` (or 8 presses).
+- `steam_cloud=sandbox`: the game's cloud reads and writes go to the copy's
+  `steam-userdata\356190\remote\` (see below why). `steam_trace=1` logs reads Steam
+  answers.
+- Offline tests: 34/34, mutant 11/11.
+
+### Observations (launches, all unattended)
+
+- Copy A alone, pad stopping at `Load:`, `steam_trace=1`: presses at +23.5 s and
+  +31.7 s; right after the second, `GetFileSize('\<prefix>_ShadowOfWar.sav') -> 2334736`
+  and `FileRead(...) -> 2334736 of 2334736 bytes`, then `Load:`. No local `.sav` was
+  touched before the first autosave, here and in session x. 2,334,736 bytes is the size of
+  the 2025-11-20 save in the real Steam folder's `remote\`; A's own sandbox save is
+  2,360,880 bytes. The game then stayed at menu size (~1.25 GB) for 80 s: one more screen
+  wants input.
+- Copy A alone, pad stopping at `GameModeSet`, sandbox cloud seeded with A's own latest
+  save: presses at +23.4, +31.6, +39.8 and +48.0 s; sandbox `FileRead` of 2,360,880 bytes
+  after press 2; `GameModeSet - SinglePlayer` at ~47.6 s; 2.06 GB at 76 s.
+- Copy B started while A was in the world, same settings, sandbox cloud seeded with the
+  2025-11-17 save (backup slot `_2_`): four presses, sandbox `FileRead` of 2,328,976
+  bytes, world start at 48.1 s, 2.11 GB.
+- Both in the world for 90 s with no input: both responding, CPU +73 s (A) and +100 s
+  (B), stats blocked at load (137 and 136), no achievement call, no FATAL or PROTECTED
+  line. No autosave (nobody played), so the cloud files are unchanged. Stopped after 283 s
+  (A) and 193 s (B). Backup check: unchanged.
+
+### Derived
+
+- **Correction to sessions j, n, p and x:** the game never loaded the sandboxed local
+  saves. It loads through `ISteamRemoteStorage::FileRead`, which `steam.exe` answers from
+  the real Steam folder, so every test copy so far loaded the real cloud copy (read only;
+  nothing there changed). The local `.sav` files are written but not what the game loads.
+- With `steam_cloud=sandbox` each copy loads and keeps its own save; with the pad, a test
+  copy gets from launch into the world in ~48 s with no keyboard, mouse or focus.
+
+### Unknown
+
+- Which screen presses 3 and 4 answer (not seen).
+- The sandbox cloud's write path in the real game: no autosave happened (covered by the
+  offline test only).
