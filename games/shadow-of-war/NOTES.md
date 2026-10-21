@@ -1674,3 +1674,55 @@ the code that installs them, call chains back to the program entry. Exe file onl
   timer), each applied as a teleport one frame later, with the orc's own AI moving it
   in between. Next: send at the game's frame rate and interpolate (or extrapolate) on the
   simulation thread every frame; later stop the puppet's own AI and drive its animation.
+
+## Session 2026-10-21 ac: smoother puppet (a packet every frame, interpolated)
+
+### Change (sow-coop, local)
+
+- Packet version 2 (60 bytes) adds the sender's clock (QPC, microseconds).
+- Sender: once the simulation-thread hook runs, it sends one packet per game frame from
+  that thread (a frame callback before the queued work). Before that, a high-resolution
+  waitable timer at `coop_rate_hz` (60) replaces the old 50 ms `Sleep`.
+- Receiver: keeps the last 128 packets and takes the clock offset as the smallest
+  receive-minus-send time (measured again every 10 s). Every frame the simulation thread
+  places the puppet where the sender was `coop_delay_ms` (50) ago: position interpolated
+  linearly, rotation by normalized lerp on the shorter arc, applied through the same
+  queued teleport.
+- Offline: `test_guard` 38 of 38 (in `coop_puppet` a fake simulation thread walks the
+  sender +0.5 units a frame for 200 frames; the puppet has to follow in steps of at most
+  1 unit, never backwards, and end where the sender stopped), negative control 15 of 15
+  caught.
+
+### Observations (live, unattended, copies A and B, both `background_run=1`)
+
+- A logged "sending once per game frame from the simulation thread"; B picked a
+  300-health orc and logged "puppet moved every frame, 50 ms behind the sender".
+- 58.8 packets a second, 0 lost (22,025 packets over ~6 min). The puppet's move count
+  rose with the packet count (240 of each per 4 s).
+- A walked with the virtual stick (start, full speed, stop); distance between A and B's
+  orc:
+
+  | A's speed (units/s) | orc behind A (units) |
+  |---|---|
+  | 37 (starting) | 6.0 |
+  | 155 | 11.9 |
+  | 235 | 14.0 |
+  | 0 (stopped) | 0.0 |
+
+- Working set: A 2.12 GB, B 2.09 GB.
+- A then walked a loop (right 2.5 s, forward 1.5 s, left 2.5 s, back 1.5 s) for ~50
+  minutes; after ~6 minutes it stayed within ~700 units of its start.
+
+### Derived
+
+- At walking speed the orc is ~50-70 ms behind A: the 50 ms delay plus about one frame
+  (the teleport is applied a frame after it is queued). It no longer moves in 16-20
+  steps a second.
+- What still looks wrong belongs to the orc itself: its own AI and animation still run,
+  so it slides instead of walking. Next: stop its AI, drive its animation from A's speed,
+  then a Talion model.
+
+### Unknown
+
+- How it looks on screen (not watched yet).
+- Real network delay and jitter: only loopback so far; 50 ms was chosen for loopback.
