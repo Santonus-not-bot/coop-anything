@@ -1338,3 +1338,59 @@ the code that installs them, call chains back to the program entry. Exe file onl
 - Whether more instance checks follow later in start-up (lessons.md item 10: checks come
   in layers): window-class lookups, shared files, Steam's own handling of two processes
   of one app on one account. The live test after the rename will show.
+
+## Session 2026-10-21 w: per-copy instance mutex; two copies run side by side
+
+### Change (sow-coop, local)
+
+- New guard option `instance_mutex_suffix=<copy id>`: hooks `ntdll!NtCreateMutant` (same
+  syscall-stub hook as the file calls) and renames only a mutex whose last name
+  component is `{015C2674-4E09-4862-9A60-F96FA41BF0B1}` to `...-sowguard-<copy id>`.
+  Per copy, not per process, so the game still refuses the same copy twice (it would
+  share one sandbox profile). Without the option the hook is not installed.
+  `mutex_trace=1` logs every named mutex. No change to the exe or the protection.
+- Why ntdll and not the import table: SteamStub rebuilds the game's import table at run
+  time (session v), and `CreateMutexW` ends in `NtCreateMutant` whatever the import path.
+- Offline tests (fake game process, no game): the test holds `Local\<test name>` as
+  another copy would; with a suffix the guarded `CreateMutexW` passes, the mutex exists
+  under the per-copy name, a second create in the same copy still sees
+  `ERROR_ALREADY_EXISTS`, other names are untouched; without a suffix the check sees the
+  other copy and no mutex hook is installed; a bad suffix stops with a config error.
+  Suite 31/31; the negative-control build fails 9/9 dependent cases. The log shows
+  `CreateMutexW` hands `NtCreateMutant` the name as `Local\{...}` (relative to the
+  session's BaseNamedObjects directory) on Windows 11 26200.
+
+### Observations (launch: copy A with suffix `a`, then copy B with suffix `b`)
+
+- Both copies read-only probe, network offline, `mutex_trace=1`.
+- Copy A: `instance mutex renamed: Local\{015C...} -> Local\{015C...}-sowguard-a (status
+  0x00000000)` about 4.2 s after the guard started; main menu, ~1.22 GB.
+- Copy B, started while A was at the main menu: token read through the redirect (no
+  write), `... -> Local\{015C...}-sowguard-b (status 0x00000000)` 3.7 s after the guard
+  started, then **kept running**: window class `Shadow of War`, title
+  `Middle-earth™: Shadow of War™`, ~1.25 GB.
+- Checked about 25 s later: both processes responding, both using CPU (+3.7 s and
+  +4.4 s in 20 s), one visible window each, no dialog windows, both probes answer
+  `ready=1 write=0`. No connection attempts, no protected or watched writes, no FATAL in
+  either log. Each process had logged 39 named mutexes by then (`mutex_trace`).
+- Copy B ran 71 s next to copy A, then the agent stopped both (exit `0xFFFFFFFF` =
+  forced stop). Owner check after each: OWNER_UNCHANGED (render.cfg info only). Copy B's
+  token unchanged.
+- Copy B's first full start wrote `gpu.nfo` and `render.cfg` in its sandbox with
+  `"Windowed" "2.000000"` and opened a 1920x1080 window at 0,0 instead of 960x540 at
+  x=960. Set back to `1.000000` in copy B's sandbox (backup `render.cfg.before-windowed`).
+
+### Derived
+
+- The named mutex was the only check stopping a second copy, at least up to the main
+  menu. Two guarded copies of Shadow of War can now run at once on this PC with one
+  Steam account, offline, each in its own sandbox.
+- Copy B was not seen on screen, so "main menu" for B rests on its window, size and
+  probe state matching copy A's; the owner may see it directly next time.
+
+### Unknown
+
+- Whether a second check appears later (loading a save, entering the world, online
+  features). Next test: both copies load a save.
+- Whether Steam treats two processes of one app on one account differently once the
+  game calls more Steam APIs (achievements, stats, friends).
