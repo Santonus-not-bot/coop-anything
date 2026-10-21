@@ -1146,3 +1146,79 @@ resurrection record; `"None"` (1DB4ED8) is the name used for a missing subject/o
   observed live (needs a session with play).
 - Steam remote-storage guard in at 359 ms. Game stopped by the agent after the check
   (exit 0xFFFFFFFF, forced); owner check OWNER_UNCHANGED; test-copy config restored.
+
+## Session 2026-10-21 t: is the LithTech client/server split real at runtime? (static, read-only)
+
+Method: strings and their code references, references to registry entries, vtables and
+the code that installs them, call chains back to the program entry. Exe file only
+(`.arch` identical in memory). Tools: `sow-coop/tools/xref.py` plus small scripts.
+
+### Observations
+
+- **No LithTech client/server protocol in the binary:** no `ILTServer`, `ILTClient`,
+  `CAutoMessage`, `ILTMessage`, `MID_*` message IDs or "ServerMgr" strings. RTTI names
+  exist only for Havok, WB's `hydra` SDK and std.
+- **"GameServerShell" is client code.** `GameServerShell.DebugPause` (handler 177658C)
+  reads the GameClient global (`26FFA98`, the freecam's pointer) and changes pause flags
+  at `GameClient+0xE90`; `GameServerShell.PrintPauseFlags` (17762C) is `ret 0`;
+  `ResetWorldIdentical` / `AdvanceTimeOfDay` go through the neighbouring client globals
+  `26FFAB0` / `26FFAA8` into WorldSimSession code (`178xxxx`). All are defined in
+  `Game\ClientShellDLL\` (GameClientShell.cpp, WorldSimSession.cpp).
+- **Multiplayer settings exist but nothing reads them.** Registry variables `LANOnly`
+  (bool, 1), `publicserver` (bool, 1), `password` (string), `NetMeshGamePort` (int, 1032),
+  `Net.NSM.HostVote.Timeout` (15000), `Net.NSM.HostVote.PauseInStart` (2000) are each
+  referenced by exactly two functions: their registration (around `AFxxx`) and
+  unregistration (around `1065xxx`/`1069xxx`), touching only the record and its list
+  links; no code reads their value (`+0x38`) and their name strings have no code
+  references. Control: `Physics.Client.PhysicsUpdateRate` *is* read (1A8C80 in 1A864C).
+- **A peer "NetMesh" with host/join is compiled in** (around `119F000`-`11A2000`):
+  strings `HostMesh() should only be called when the mesh is disconnected`, `JoinMesh() ...`,
+  `SendJoinRequest() should only be called when we're joining`, `Attempt to add NetNode
+  with invalid ID / 'All' ID / duplicate ID / duplicate endpoint`, `WriteMessage called
+  with an improperly-matched message class`, `DetermineNewHost: Using matchmaking system
+  **NOT IMPLEMENTED**`. NetMesh object: vtables `22C1128` + `22C1170` (multiple
+  inheritance), constructor `119F92C`, destructor `119FB98`; HostMesh `11A0F5C` and
+  JoinMesh `11A1218` are virtual (no direct callers); DetermineNewHost `11A0394` virtual.
+  Host-vote net state machine vtable `1E700A0` (installed by `11D0094`); message classes
+  vtables `22BFA60` / `22BFB00`.
+- **The only creator of a NetMesh is `118056C`,** which is slot 18 of the vtable at
+  `1E6AEC0` (a network-manager-like class; constructor `117F8B0`, destructor `117FE68`).
+  The host-vote and message-class constructors are reached only from NetMesh's own
+  virtual functions.
+- **The network manager is constructed at every start:** `117F8B0` <- `1178778` <-
+  `1178D80` (engine start-up; references `-cmdfile ..\cmdline.txt`) <- `11725C4` <-
+  `8C3E5C` <- `8C3FC8`, which is MSVC's program entry (`sub rsp,28h; call
+  __security_init_cookie; jmp __scrt_common_main_seh`), i.e. the original entry point
+  behind SteamStub.
+- Other network code belongs elsewhere: hydra realtime websockets (`RealtimeWebsocketConnection`,
+  `ServerDisconnectMessage`, `PlayerDisconnectedMessage`, libwebsockets) for WB's online
+  service; matchmaking strings are for invasions (`invasion_matchmaking`,
+  `InvasionSelfMatchmaking`: Online Conquest); `common.base.network.bsdsocket` is Havok's
+  remote-debug socket (`hk2016...\hkBsdSocket.cpp`).
+- Lockstep support exists: `FrameUpdateLock.Enable` ("the game will update with a fixed
+  frame time") and `FrameUpdateLock.TimeMS` ("milliseconds to lockstep frame updates").
+- Game modes are data-driven content modes (`GameModes/Session`, scoring, currency,
+  progression), not network modes.
+
+### Derived (verdict)
+
+- **The LithTech client/server split is not a runtime split in Shadow of War.** The
+  "server shell" commands operate on client-side singletons; there is one process, one
+  world (WorldSimSession inside the client shell), and no LithTech message protocol. A
+  second player cannot simply attach to a host's "server" as in F.E.A.R./NOLF2 co-op.
+- **A generic peer mesh (NetMesh: host, join, nodes, messages, host vote) survives** in the
+  binary, and its manager is created at start-up, but nothing in the game reads the
+  multiplayer settings that would drive hosting, and no non-virtual path to
+  HostMesh/JoinMesh exists. Most likely an engine-level networking layer the game never
+  uses (or kept for unreleased features). It could still be a transport we drive
+  ourselves; unknown whether it is complete enough (encryption, NAT, reliability).
+- Consequence for the design: **build our own host-authoritative sync** (state through
+  `Faction.Save`/`Load` and the event hooks from session r, our own transport such as
+  Steam networking), with the NetMesh as an option to evaluate later, not a base.
+
+### Unknown
+
+- Whether the manager's slot 18 (create NetMesh) is ever called at runtime: it is a
+  virtual call, not resolvable statically here. Runtime check (read-only): log AFD bind /
+  connect requests and the manager's mesh pointer during a session (`net_trace=1`).
+- Whether the NetMesh layer is complete and usable as a transport.
