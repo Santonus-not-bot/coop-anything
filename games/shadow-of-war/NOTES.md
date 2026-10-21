@@ -1222,3 +1222,51 @@ the code that installs them, call chains back to the program entry. Exe file onl
   virtual call, not resolvable statically here. Runtime check (read-only): log AFD bind /
   connect requests and the manager's mesh pointer during a session (`net_trace=1`).
 - Whether the NetMesh layer is complete and usable as a transport.
+
+## Session 2026-10-21 u: second test copy and a two-instance attempt
+
+### Copy B
+
+- In seven launches the game wrote nothing into copy A's install folder except the files
+  the agent staged (`x64\bink2w64.dll`, `x64\sowguard.ini`). So copy B
+  (`test-installs\sow-b`) hardlinks everything outside `x64\` to copy A (893 files, the
+  archives and `game\`, read-only to the game) and has real copies of the 10 files in
+  `x64\` (exe, DLLs, guard, config). Exe hash equal to A. Disk use: ~0.12 GB.
+- Own sandbox profile (`sow-b-profile`), own probe pipe (pid in the name), windows side by
+  side through the sandboxed `render.cfg` keys `ScreenX`, `ScreenY`, `WindowWidth`,
+  `WindowHeight`, `Windowed`. `local/launch-sow.ps1 -Copy a|b [-AllowOthers]` launches one
+  copy and refuses this copy twice or any game process outside the test copies.
+
+### Two-instance attempt (both read-only probe, network offline, at the main menu)
+
+- Copy A started normally (window `Middle-earth™: Shadow of War™`, class `Shadow of War`,
+  ~1.2 GB). Copy B started alongside, passed the guard (exe identity, hooks, probe ready,
+  remote-storage guard in at 390 ms), then stopped at a dialog (class
+  `CustomerMessageDialog1`, title `Middle-Earth: Shadow of War`, 171 MB): *"The server is
+  not reachable, check your Internet connection and click "Retry". In case the problem
+  persists, click "Next" to open the support website in the default browser."* (read with
+  the window-text APIs; no screenshot). B tried `52.212.79.19:443` and `52.30.75.184:443`
+  (15 times each, refused by the offline mode); copy A's in-game online hosts are
+  different (`3.213.33.214`, `184.193.6.155`).
+- **Steam userdata `356190\175823492`** (1,178 bytes, hex text): copy A's sandbox has it
+  (written 17:15:10), copy B's does not. In launch 1 (copy A's first run, sockets
+  refused) the game probed for it at +0.8-1.4 s (absent), then the 68 s gap during which
+  the owner went through the dialog and the support website, then **wrote it at
+  +68.8 s**; copy A never showed the dialog again. The owner's real Steam folder has its
+  own copy of this file (from 2025-11-12).
+- Both instances stopped by the agent (no button clicked in B's dialog); owner check after
+  each: OWNER_UNCHANGED. Copy A's config restored.
+
+### Derived
+
+- The dialog and the file are Denuvo's online activation and its license token (the
+  wording, the support-website flow, the start-up timing and the token appearing right
+  after the first activation all fit; not confirmed by a source). Because the guard
+  sandboxes `userdata\<id>\356190` per copy, every new copy looks unactivated.
+- Whether the game itself allows a second instance (the exe contains `CreateMutex failed`)
+  is **not answered yet**: copy B stopped at activation before the game's own start-up.
+- Ways forward (owner's decision; none touches the protection itself): give copy B the
+  same token copy A has (both sandboxes mirroring one Steam userdata folder, as a
+  normal install would), or let copy B activate once by allowing only its two activation
+  hosts. Contacting the activation service may count toward Denuvo's activation limits
+  (unknown how many).
