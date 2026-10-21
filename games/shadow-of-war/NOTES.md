@@ -1392,3 +1392,75 @@ the code that installs them, call chains back to the program entry. Exe file onl
   features). Next test: both copies load a save.
 - Whether Steam treats two processes of one app on one account differently once the
   game calls more Steam APIs (achievements, stats, friends).
+
+## Session 2026-10-21 x: achievements blocked; both copies in the world with different saves
+
+### Change (sow-coop, local)
+
+- The Steam guard now also replaces the write methods of the game's `ISteamUserStats`
+  (`STEAMUSERSTATS_INTERFACE_VERSION011`, from `ISteamClient` slot 0x68). Offsets from
+  the shipped `steam_api64.dll` flat wrappers: `SetStat0` (float) 0x18, `SetStat`
+  (int32) 0x20, `UpdateAvgRateStat` 0x28, `SetAchievement` 0x38, `ClearAchievement`
+  0x40, `StoreStats` 0x50, `IndicateAchievementProgress` 0x68, `ResetAllStats` 0xA8,
+  `UploadLeaderboardScore` 0xF8, `AttachLeaderboardUGC` 0x100. Reads pass (e.g.
+  `GetAchievement` 0x30). `UploadLeaderboardScore`'s wrapper uses
+  `mov r10,[rcx]; jmp [r10+0xF8]` instead of rax; the shape check accepts both.
+- Offline tests with the stand-in `steam_api64.dll`: 31/31, mutant 9/9. After this
+  launch, achievements got their own log budget (stats used most of the shared one).
+
+### Setup
+
+- Copy A: its own sandbox save, which descends from the 2025-11-20 save plus ~20 min
+  of earlier test play (sessions n and p, two captain kills).
+- Copy B: the six saves from the backup, copied unchanged (hashes equal); Continue
+  loads the 2025-11-20 save.
+- Both offline, per-copy instance mutex; A with the debug-print hook (22 channels), B
+  with the read-only probe.
+
+### Observations
+
+- Each copy loaded its save and was played by hand in turn; stopped by the agent after
+  575 s (A) and 558 s (B). Both ~2.3 GB, responding, no crash, no FATAL, PROTECTED or
+  WATCH line in either log.
+- Saves: 6 `FileWrite`s blocked in A (first at +122.8 s), 11 in B (first at +296 s);
+  the files went to each copy's own sandbox with the usual slot rotation. Afterwards A's
+  slot 2 is its previous own save and B's slot 2 is the 2025-11-20 save, so each
+  continued from its own data. Final main saves differ (A `4EF1832137F0...`, B
+  `582CAA5553A6...`).
+- User-stats guard in at 359 ms (A) and 437 ms (B). At load each copy called `SetStat`
+  for 137 stats (`kills`, `killed_captains`, `game_time_played`, ...); the first value
+  of every stat was **the same in A and B** (137 of 137), although the saves differ.
+  During play some changed (`kills` 9 times in A). `StoreStats` 3 times (A) and 4
+  times (B). All blocked. No `SetAchievement`, progress or leaderboard call.
+- Network: the same two HTTPS hosts refused at +55-64 s and again 15 s later; nothing
+  else.
+- Copy A's debug print: 21,787 lines from +7.9 s to +207.8 s, then silent until the
+  stop. `[GAMEMODE|SESSION]: Load:` at +62.8 s. Categories: `FACTION|BUNDLE` 11,942,
+  `QUEST|JOB` 2,907 (818 jobs rejected by "Random Roll"), `FACTION|TRIBE` 2,168,
+  `FACTION|PURPOSE` 2,160, `SIMEVENT|OUTCOME` 1,075 (`HandleFactionEventAction`: 916
+  `FactionMember_RoleSelected_Standard`, 51 `_Notable`, 45 `IsPlayerFollowerApply`, 26
+  `Debug_RecruitFollower`, 12 `DEBUG_AddPIS`, ...).
+- Backup check after the stop: unchanged (render.cfg info only).
+
+### Derived
+
+- Two copies can each run a different save in the world at the same time on one PC and
+  one Steam account. Neither affected the other: separate sandboxes and saves, and the
+  shared parts (Steam cloud, Steam stats) are blocked in both. The copies do not talk to
+  each other yet, so this shows independence, not how co-op handles two different
+  worlds.
+- Steam stats belong to the account, not the save: both copies started from the same
+  values. Two unblocked copies would each push their own increments to one account.
+  Test sessions before this block sent their stat updates unblocked; those probably
+  reached the account (not logged then, so unknown which).
+- A joining player's save will differ from the host's, as here. With host-authoritative
+  sync (session t) the client plays in the host's world; whether the client's own save
+  stays untouched while joined, and what it keeps afterwards, is a design decision.
+- The load alone makes hundreds of random rolls in Nemesis job selection, so even the
+  same save loaded twice would diverge without syncing results (one global LCG,
+  session r).
+
+### Unknown
+
+- Whether a further instance check appears with the online features on (they are
+  offline here).
