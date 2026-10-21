@@ -6,7 +6,7 @@
 | Versions tested | Steam app 356190, build 3095001 (last update 2018-09-05), `x64\ShadowOfWar.exe` 1.0.8874.0, SHA-256 `ed0d95cabb033cd66aaa99d699374881846c3cb03ec345f1123d82d45e0bdaef` |
 | Projects | none playable; [JustAddMP/ShadowOfWar](https://github.com/JustAddMP/ShadowOfWar) is a placeholder; research here (claim: cranebeaker/coop-anything#93) |
 | QA level | none (no co-op exists yet) |
-| Last updated | 2026-10-20 |
+| Last updated | 2026-10-21 |
 
 ## Where things stand
 
@@ -36,9 +36,10 @@ build above. Raw notes with sources: [NOTES.md](NOTES.md).
 
 ## How the game works (for co-op)
 
-- **Code on disk.** Denuvo and SteamStub are present, but the game's code section `.arch`
-  (31 MB), the `.pdata` function table and `.sdata` are byte-identical on disk and in
-  memory while the game runs, so the exe file can be read statically. Image base
+- **Code on disk.** SteamStub is present and Denuvo likely (its usual section layout, no
+  marker string; NOTES.md session b), but the game's code section `.arch` (31 MB), the
+  `.pdata` function table and `.sdata` are byte-identical on disk and in memory while
+  the game runs, so the exe file can be read statically. Image base
   0x140000000.
 - **Engine layout.** LithTech's client/server split survives in the source paths
   (`Game\ClientShellDLL`, `Game\ObjectDLL`, `Game\Shared`), with a "game NetMesh" hosting
@@ -90,10 +91,10 @@ No co-op changes yet. Tooling for working on the game safely (not published yet)
 
 - **sowguard**, a `bink2w64.dll` proxy for a copied test install: refuses to run outside
   the test folder or on another build; hooks ntdll file calls in the game process to
-  redirect the save folders into a sandbox and stop the game on any write to the owner's
+  redirect the save folders into a sandbox and stop the game on any write to the real
   install or saves; fails outbound connections like an offline PC; blocks
   `ISteamRemoteStorage` writes in the game process (the Steam client would otherwise write
-  the test copy's saves into the owner's Steam folder).
+  the test copy's saves into the real Steam folder).
 - **sowprobe**, a named-pipe probe inside the game: read memory, scan patterns, follow
   pointers, read the console registry; with write mode on, capture the debug print.
 
@@ -102,11 +103,11 @@ No co-op changes yet. Tooling for working on the game safely (not published yet)
 - Offline test suite for the tooling (no game process): 28 of 28 cases pass; a mutant
   build with the protections compiled out fails the 8 cases that depend on them.
 - Live: seven guarded launches on the Steam build. The after-run check against a hashed
-  backup of the owner's saves and Steam folder caught two writes from outside the game
-  process: the NVIDIA App rewriting the owner's `render.cfg`, and `steam.exe` writing the
-  test copy's save into the owner's Steam cloud folder (restored from the backup). The
+  backup of the real saves and Steam folder caught two writes from outside the game
+  process: the NVIDIA App rewriting the real `render.cfg`, and `steam.exe` writing the
+  test copy's save into the real Steam cloud folder (restored from the backup). The
   second led to the remote-storage block; with it, a session with 16 autosaves left the
-  owner's saves and Steam folder unchanged. One launch crashed because of the first
+  real saves and Steam folder unchanged. One launch crashed because of the first
   debug-print hook (see the playbook lesson on hooking leaf stubs); fixed and tested.
 - Co-op QA: none (nothing to test yet).
 

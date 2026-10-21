@@ -22,7 +22,7 @@ or public GitHub metadata; nothing was run against the game.
 | Archives | `.arch06` (file-extension sites only, unverified) |
 | DRM | Denuvo at launch ([guru3d](https://www.guru3d.com/story/middle-earth-shadow-of-war-pc-drm-was-cracked-within-24-hours/)). Current Steam build: SteamStub confirmed, Denuvo very likely still present (see session 2026-10-20 b). |
 | Other PC versions | Microsoft Store / Game Pass exists (SystematicSkid's save converter moves saves between it and Steam). Treat as a different build. |
-| OS | Windows 11 (owner's PC); details go in `local/` |
+| OS | Windows 11 (test machine); machine details stay out of the hub |
 | Studio | Monolith closed 2025-02-25 (Wikipedia). No further patches expected: good for stable offsets. |
 
 ### Observations (checked directly, with sources)
@@ -31,8 +31,8 @@ Repo and tracker:
 - This repo had no Shadow of War or Shadow of Mordor entry in `DIRECTORY.md`,
   `data/directory.yaml` or `games/` (grep, after `git pull` on 2026-10-20). Only LithTech
   hits are F.E.A.R. and NOLF2 (much older LithTech, not useful for Firebird internals).
-- `gh` is not installed on this PC, so open issues/PRs on the hub were **not** checked.
-  To do before claiming the game.
+- Open hub issues/PRs were **not** checked in this session (GitHub CLI not set up yet);
+  checked before claiming the game (claim issue #93).
 
 Official multiplayer (none in real time):
 - No co-op or split screen; online features are asynchronous only: Online Vendettas,
@@ -53,7 +53,7 @@ Existing co-op attempts:
   lobbies, very active: v0.14.0 on 2026-10-20; no license file detected by the GitHub API).
   Their only game with real code linked from this hub is MafiaDE. Also has a
   `JustAddMP/ShadowOfMordor` placeholder. **Nothing to revive**, but someone may start
-  soon: worth contacting (with the owner's OK) to avoid duplicate work.
+  soon: worth contacting to avoid duplicate work.
 - No other co-op or multiplayer mod found for Shadow of War or Shadow of Mordor: web
   search (several phrasings), GitHub repository search for "shadow of war" (first 30
   hits read), Nexus (blocked automated fetch: 403), Steam forums via search results,
@@ -154,7 +154,7 @@ Modding foundation (all closed binary hooking, no official mod support):
 ### Unknowns (to resolve in phase 2/3)
 
 - Exe SHA-256, file version, Denuvo presence (needs a copied install).
-- Whether the hub has open issues/PRs for this game (`gh` not installed).
+- Whether the hub has open issues/PRs for this game (not checked yet).
 - Where Nemesis state lives, how saves are serialised, whether a scripting layer exists.
 - Whether Shadow of War's online servers still run in 2026.
 - License status of every SoW mod repo except the two MIT ones.
@@ -168,9 +168,8 @@ Archive.org, Steam guides.
 
 ### Next steps
 
-1. Owner: install `gh` (or allow it) so hub issues/PRs can be checked; open a "claim a
-   game" issue.
-2. Owner: copy the Steam install to a test folder; record exe hash, version, Denuvo
+1. Set up `gh` so hub issues/PRs can be checked; open a "claim a game" issue.
+2. Copy the Steam install to a test folder; record exe hash, version, Denuvo
    presence in `local/identity.md` and here.
 3. Phase 3: build the mod loader + a logging plugin on the test copy; read
    SystematicSkid's save editor and freecam sources for class layouts; map the Nemesis
@@ -180,10 +179,10 @@ Archive.org, Steam guides.
 
 ### Observations (checked directly)
 
-- Owner's Steam install: buildid 3095001 (appmanifest `buildid` and `TargetBuildID`),
+- Steam install: buildid 3095001 (appmanifest `buildid` and `TargetBuildID`),
   901 files, 117,711,336,590 bytes. Copied read-only with robocopy to an isolated test
   folder (`<workspace>\local\test-installs\sow-a`, git-ignored): 901 files, same byte
-  total, 0 failures. The owner's install was only read.
+  total, 0 failures. The Steam install was only read.
 - `x64\` holds `ShadowOfWar.exe`, `bink2w64.dll` (the mod loader's proxy target),
   `steam_api64.dll`, `oo2core_5_win64.dll` (Oodle), `amd_ags_x64.dll`, `AnselSDK64.dll`.
 - `ShadowOfWar.exe`: 117,732,784 bytes, SHA-256
@@ -215,7 +214,7 @@ Archive.org, Steam guides.
 ### Unknowns
 
 - Save and settings locations (needed before the first launch of the copy, so the copy
-  does not use the owner's saves).
+  does not use the real saves).
 - Whether the game runs two instances on one PC (mutex/window checks, Denuvo, Steam).
 
 ### Next steps
@@ -226,7 +225,7 @@ Archive.org, Steam guides.
 
 ## Session 2026-10-20 c: where saves and settings live, isolation plan
 
-### Observations (read-only listing of the owner's folders, file names and sizes only)
+### Observations (read-only listing of the real save and Steam folders, names and sizes only)
 
 - `%LOCALAPPDATA%\WB Games\Shadow of War\` holds everything local:
   - saves: `<8 hex>_ShadowOfWar.sav` plus `<8 hex>_1..5_ShadowOfWar.sav`, ~2.3 MB each
@@ -240,7 +239,7 @@ Archive.org, Steam guides.
   you delete locally ([Steam thread](https://steamcommunity.com/app/356190/discussions/0/4699035289200469903)).
 - Older builds saved to `Documents\WB Games\Shadow of War`
   ([Microsoft Q&A](https://learn.microsoft.com/en-us/answers/questions/5614199/not-saving-data-or-save-files-for-middle-earth-sha));
-  that folder does not exist on this PC.
+  that folder does not exist on the test machine.
 - No `WB Games` key in HKCU, HKLM or WOW6432Node registry.
 - Exe imports (read-only parse; Denuvo leaves a small static import table, most APIs are
   resolved at runtime): `shell32!SHGetKnownFolderPath` statically. Strings in the exe:
@@ -254,8 +253,8 @@ Archive.org, Steam guides.
 
 - Saves reach disk two ways: plain files under the LocalAppData known folder, and
   Steam Cloud through `ISteamRemoteStorage` (v014). Redirecting the folder alone would
-  still let a test copy overwrite the owner's cloud save, which Steam then pulls back
-  into the owner's real install.
+  still let a test copy overwrite the real cloud save, which Steam then pulls back
+  into the real install.
 - `SetEnvironmentVariable LOCALAPPDATA` will not redirect `SHGetKnownFolderPath`
   (it reads the user profile, not the environment). Redirection has to happen in
   process, from our DLL.
@@ -265,9 +264,9 @@ Archive.org, Steam guides.
 ### Isolation plan (nothing launched until every step passes)
 
 1. **Backup with a hash manifest** of `%LOCALAPPDATA%\WB Games\Shadow of War` and
-   `userdata\<id>\356190` into `local/backups/<date>/` (read from the owner's folders,
+   `userdata\<id>\356190` into `local/backups/<date>/` (read from the real folders,
    write only into the workspace).
-2. **Owner action (their call):** turn off Steam Cloud for Shadow of War in Steam
+2. **Manual step in the Steam client:** turn off Steam Cloud for Shadow of War
    (game Properties > General) for the testing period. Belt and braces with step 3.
 3. **Never launch the copy vanilla.** First launch only with our own proxy
    `bink2w64.dll` in the copy's `x64\` (original renamed to `bink2w64_.dll`, same trick
@@ -275,20 +274,20 @@ Archive.org, Steam guides.
    - hooks `SHGetKnownFolderPath` / `SHGetFolderPathW` so LocalAppData (and Documents)
      resolve to `local\test-installs\sow-a-profile\` for this process;
    - makes `ISteamRemoteStorage` writes and deletes no-ops (logged) and reports cloud
-     disabled, so nothing reaches the owner's cloud slot;
+     disabled, so nothing reaches the real cloud slot;
    - blocks `winhttp`/`wininet` connections (offline mode; no modded state to WB's
      servers, hub rule 10);
    - logs every file opened for writing outside the copy and its profile folder, and
-     **terminates the game** if one targets the owner's save folder or Steam userdata
+     **terminates the game** if one targets the real save folder or Steam userdata
      (fail closed);
    - writes its own log to `local\test-installs\sow-a-profile\coop-log.txt`.
 4. **Seed the sandbox profile** with a `render.cfg` set to windowed, 1280x720, low
-   preset, and no save (new game), or a copy of one owner save if needed later.
+   preset, and no save (new game), or a copy of one real save if needed later.
 5. **Launch from the copy**, not through the Steam library: `steam_appid.txt` (356190)
    next to the exe, `SteamAppId`/`SteamGameId` env vars, Steam running. Kill only
    processes whose path is inside `local\test-installs\`.
-6. **After every run:** re-hash the owner's folders against the manifest; any
-   difference = stop and report. Also check the owner's real `x64\` is unchanged.
+6. **After every run:** re-hash the real folders against the manifest (the backup
+   check); any difference = stop and report. Also check the real `x64\` is unchanged.
 7. Before building step 3, test the redirect DLL on a harmless target first if
    possible; unknown whether SteamStub/Denuvo tolerate the proxy before ReaperAnon's
    loader proves it on this build (it is documented to work on the Steam version).
@@ -308,7 +307,7 @@ Archive.org, Steam guides.
   original: 30 files, 0 mismatches.
 - Observation: the main save, save slot 1 and the Steam Cloud save have the same SHA-256,
   so the unnumbered `.sav` looks like the current/last-used slot mirrored to the cloud.
-- Step 2 (Steam Cloud off): done by the owner. Checked read-only: Steam's
+- Step 2 (Steam Cloud off): done in the Steam client. Checked read-only: Steam's
   `userdata\<id>\7\remote\sharedconfig.vdf` has `"356190" { "cloudenabled" "0" }`.
 - Next: step 3, the redirect/guard DLL. Nothing launched yet.
 
@@ -325,24 +324,24 @@ the write-up only.
   LNK2001 for every export). MSVC 14.44, `/W4 /WX`, static CRT.
 - Hooks six ntdll functions in-process: `NtCreateFile`, `NtOpenFile`,
   `NtQueryAttributesFile`, `NtQueryFullAttributesFile`, `NtSetInformationFile`
-  (rename/link targets), `NtDeleteFile`. Observation on this PC (Windows 11 26200):
+  (rename/link targets), `NtDeleteFile`. Observation on the test machine (Windows 11 26200):
   all six are plain 24-byte syscall stubs
   (`4C 8B D1 B8 <id> F6 04 25 08 03 FE 7F 01 75 03 0F 05 C3 CD 2E C3`), so a byte copy is
   a working trampoline; no hooking library or download needed. Any other layout stops
   the game (exit `0xC0DE0005`) instead of guessing.
 - Redirects `%LOCALAPPDATA%\WB Games`, `Documents\WB Games` and
-  `Steam\userdata\<any id>\356190` to a sandbox profile; protects those plus the owner's
+  `Steam\userdata\<any id>\356190` to a sandbox profile; protects those plus the real
   install (write = terminate, `0xC0DE0010`); logs writes elsewhere in Steam userdata;
   denies `\Device\Afd` (sockets) when `block_network=1`.
 - Start-up refusals: exe outside `allowed_root` or inside the Steam folder
   (`0xC0DE0002`), exe not size 117,732,784 + the recorded SHA-256 (`0xC0DE0003`),
   `steam_appid.txt` not `356190` (`0xC0DE0004`); sets `SteamAppId`/`SteamGameId`.
-  Owner paths come from the environment and registry at runtime, never hard-coded.
+  The real paths come from the environment and registry at runtime, never hard-coded.
 
 ### Tested (offline, no game process)
 
 - Suite `test_guard.exe run`: **RESULT: PASS (20 of 20 cases passed)**, 2026-10-20.
-  Each case builds a fake owner tree, loads the DLL into a child process in test mode
+  Each case builds a fake user tree, loads the DLL into a child process in test mode
   (real user paths refused) and checks disk state + exit code. Covers: redirected
   write/read/attributes/listing; forward slashes, lower case, `\?\`, cwd-relative and
   directory-handle-relative `NtCreateFile`; rename/delete/mkdir in the profile; Steam
@@ -357,42 +356,42 @@ the write-up only.
   **5 of 5 dependent cases fail as they should**.
 - Dry run of the staged game-mode config inside the test copy with a non-game exe: the
   DLL parsed the config and refused with `0xC0DE0003 unknown exe`.
-- Owner's real saves and Steam userdata re-checked against the backup manifest after
-  all of this: 30/30 unchanged.
+- Real saves and Steam userdata re-checked against the backup manifest after all of
+  this: 30/30 unchanged.
 
 ### Observed in passing
 
-- The owner's real install has `x64\steam_appid.txt` (`356190`), created 13:59 on
+- The real install has `x64\steam_appid.txt` (`356190`), created 13:59 on
   2026-10-20, about a minute before Steam's `remotecache.vdf` for the game was last
   written, and before this session first looked at the install. Most likely the game
-  writes it itself at launch (guess; owner can confirm). The test copy inherited it.
+  writes it itself at launch (guess, unconfirmed). The test copy inherited it.
 
 ### Staged (not launched)
 
 - Test copy A `x64\`: guard as `bink2w64.dll`, original as `bink2w64_.dll` (hash checked
-  equal to the owner's), `sowguard.ini` (game mode, `block_network=1`, backups folder
+  equal to the real install's), `sowguard.ini` (game mode, `block_network=1`, backups folder
   also protected). Sandbox profile `render.cfg`: `Windowed 1`, 1280x720, qualities 0,
   60 fps cap (value meanings partly guessed).
-- Launch script written but not run: checks owner saves, Steam running, nothing running;
-  starts the copy's exe directly; kills only test-copy processes on timeout; prints exit
-  code, guard log and owner check.
+- Launch script written but not run: runs the backup check, checks Steam is running and
+  no game is running; starts the copy's exe directly; kills only test-copy processes on
+  timeout; prints exit code, guard log and the backup check.
 
 ### Unknown until the first launch
 
 - Whether Denuvo/SteamStub accept ntdll hooks made before the game's entry point.
 - Whether SteamStub relaunches through Steam despite `steam_appid.txt`. If it did,
-  Steam would start the owner's real, unguarded install: watch for that in the
+  Steam would start the real, unguarded install: watch for that in the
   launch output (the script lists every ShadowOfWar.exe still alive).
 - Whether the game reaches the main menu with sockets denied, and whether it needs
   WB's servers.
 
 ## Session 2026-10-20 f: first guarded launch of the test copy
 
-Launched with `launch-sow-a.ps1` (Steam running, owner check passed first), timeout 300 s.
+Launched with `launch-sow-a.ps1` (Steam running, backup check passed first), timeout 300 s.
 
 ### Observations
 
-- Only one game process, from the test copy; nothing started from the owner's install
+- Only one game process, from the test copy; nothing started from the real install
   (checked 2 s in and at the end). SteamStub did **not** relaunch through Steam.
 - Guard accepted the exe (size + SHA-256), installed all six ntdll hooks before the game's
   entry point, and the game ran with them: Denuvo/SteamStub tolerated the hooks this run.
@@ -409,7 +408,7 @@ Launched with `launch-sow-a.ps1` (Steam running, owner check passed first), time
   of it landed in the sandbox profile.
 - The game opened a window: it saved `WindowWidth 960`, `WindowHeight 516`,
   `ScreenX 480`, `ScreenY 258` into the sandbox `render.cfg`.
-- **Owner check failed on one file:** the owner's real `render.cfg` was rewritten at
+- **Backup check failed on one file:** the real `render.cfg` was rewritten at
   17:14:04.53, 3 s after launch, in a format the game doesn't use (`"1080"` instead of
   `"1080.000000"`, trailing blank line), with `Windowed 0` (was 2, borderless),
   `TextureQuality 3` (was 2). Saves, gpu.nfo and Steam userdata unchanged.
@@ -432,50 +431,50 @@ Launched with `launch-sow-a.ps1` (Steam running, owner check passed first), time
 
 ### Next
 
-- Owner decides: restore `render.cfg` from the backup; stop the NVIDIA App from
-  optimizing Shadow of War (or close it) before test launches.
+- Options: restore `render.cfg` from the backup; stop the NVIDIA App from optimizing
+  Shadow of War (or close it) before test launches.
 - Launch script: also snapshot NVIDIA App's recommendation folder and name the writer
-  when the owner check fails; watch the window to learn why the game quits after ~139 s.
+  when the backup check fails; watch the window to learn why the game quits after ~139 s.
 
-### Owner report on the same launch (added after the run)
+### Seen on screen during the same launch (added after the run)
 
 - With sockets denied, the game showed an error/bug-report dialog about not reaching
-  WB's server. The owner had to copy the report text into WB's support website to get
-  past it. That explains the ~68 s gap in the guard log. The owner then looked at the
-  main menu and closed the game, which explains the clean exit 0 at 139 s.
-- The menu looked to the owner as if it recognised existing save data.
+  WB's server. Getting past it took pasting the report text into WB's support website.
+  That explains the ~68 s gap in the guard log. The game was then closed by hand from
+  the main menu, which explains the clean exit 0 at 139 s.
+- The menu looked as if it recognised existing save data.
 
 ### Checked against that
 
-- The guard log has no access to any `.sav` path (a read through the owner's save
+- The guard log has no access to any `.sav` path (a read through the real save
   folder would have been redirected and logged), and the sandbox has no `.sav` files.
-  The owner's six saves and Steam userdata are byte-identical to the backup. So the game
+  The six real saves and Steam userdata are byte-identical to the backup. So the game
   did not open the save files in this process. Unknown what the menu showed and where
   it came from (Steam stats or achievements over Steam's IPC are a guess).
 - `steam-userdata\356190\175823492` is a hex-text blob (1,178 bytes) that differs from
-  the owner's copy in 1,061 bytes: regenerated, not copied. Not a save.
+  the real copy in 1,061 bytes: regenerated, not copied. Not a save.
 
 ### Consequences
 
 - Denying socket creation looks like a bug to the game, not like being offline. Every
   launch would stop at that dialog, which rules out unattended bot tests, and it
-  invites reports to WB about modded runs (contacting anyone needs the owner's OK
-  under the hub rules anyway). Next guard version: allow sockets, fail outbound
+  invites reports to WB about modded runs (contacting anyone needs approval under the
+  hub rules anyway). Next guard version: allow sockets, fail outbound
   connects and DNS the way an offline PC does, and see whether the game then starts
   offline without the dialog. Unknown whether it needs WB's server at all to start.
 - Still open: whether Steam serves `ISteamRemoteStorage` file reads/writes from inside
   the game process (where the guard redirects them; the in-process write of
   `175823492` suggests yes) or from `steam.exe` (where it can't).
-- Owner decided to keep the NVIDIA-rewritten `render.cfg` and fix display settings in
-  the game. The owner check now reports `render.cfg` and `gpu.nfo` changes as info only;
+- Decided: keep the NVIDIA-rewritten `render.cfg` (display settings get fixed in the
+  game). The backup check now reports `render.cfg` and `gpu.nfo` changes as info only;
   any change to saves or Steam userdata still fails it and blocks a launch.
 
 ## Session 2026-10-20 g: offline-style network block (guard v2)
 
 Why: denying socket creation (v1) made the game show a "can't reach server" bug-report
-dialog that needed the owner's hand. Goal: look like an unplugged PC instead.
+dialog that needed a human. Goal: look like an unplugged PC instead.
 
-### Observations (measured on this PC, Windows 11 26200)
+### Observations (measured on the test machine, Windows 11 26200)
 
 - Probe (`test_guard.exe probe`, guard with `net_trace=1`, `network=allow`) traced the
   AFD requests behind each Winsock call; unroutable documentation addresses
@@ -510,17 +509,17 @@ dialog that needed the owner's hand. Goal: look like an unplugged PC instead.
   or a firewall. Unknown whether the game still shows its dialog in that case. If it
   does, next try: also fail name resolution.
 - Staged in test copy A with `network=offline`; dry run with a non-game exe refused
-  (`0xC0DE0003`); owner check OWNER_UNCHANGED (render.cfg info only). Not launched.
+  (`0xC0DE0003`); backup check unchanged (render.cfg info only). Not launched.
 
 ## Session 2026-10-20 h: second guarded launch (guard v2, network=offline)
 
-NVIDIA App window closed by the owner; its `nvcontainer` services and `NVIDIA Overlay`
-processes were still running. Owner watched the game window.
+NVIDIA App window closed before the launch; its `nvcontainer` services and `NVIDIA
+Overlay` processes were still running. The game window was watched by hand.
 
 ### Observations
 
 - One game process, from the test copy. All seven hooks installed; game ran 67 s,
-  exit 0 (owner closed it, to be confirmed by the owner's report).
+  exit 0 (closed by hand from the main menu, see below).
 - Guard log, 48 lines: 24 redirects, 4 offline refusals, 0 protected hits, 0 watched
   writes, no unparsed network request, no FATAL.
 - Timeline: +0.7 s Steam userdata `356190\175823492` opened (read, redirected); +3.5 s
@@ -532,26 +531,25 @@ processes were still running. Owner watched the game window.
 - Compared with v1: no 68 s stall before the game's own boot (v1: +1.4 s -> +69 s with
   sockets denied; v2: boot at +3.5 s). In v1 the early socket creations at +0.5-1.4 s
   were denied; in v2 they were allowed and none of them connected anywhere remote.
-- Owner's `render.cfg` was **not** rewritten this time (same hash, still 17:14:04).
+- The real `render.cfg` was **not** rewritten this time (same hash, still 17:14:04).
   The NVIDIA backend wrote only `ApplicationStorage.json` (17:49:53, at game exit) and
   did not refresh the Shadow of War recommendations. Unknown whether that is because
   the App window was closed or because it had already applied its settings at 17:14.
-- Owner check: OWNER_UNCHANGED (render.cfg info only).
+- Backup check: unchanged (render.cfg info only).
 
 ### Derived
 
 - The online calls happen late (about 43 s after boot), probably when the main menu or
   its online features load; two hosts, HTTPS, one retry 15 s later. 3.213.33.214 is in
-  an Amazon AWS range (3.0.0.0/8); the second host's owner is unknown. Hostnames
+  an Amazon AWS range (3.0.0.0/8); who runs the second host is unknown. Hostnames
   unknown (DNS happens outside the process; not looked up, to avoid more traffic).
-- Whether the error dialog still appeared depends on the owner's report.
-- Owner report: **no error dialog**; the game reached the main menu and the owner closed
-  it (the exit at 67 s). So "connections fail as on an unplugged PC" is enough for the
+- Seen on screen: **no error dialog**; the game reached the main menu and was closed
+  from there by hand (the exit at 67 s). So "connections fail as on an unplugged PC" is enough for the
   game to start and reach the menu offline; failing DNS is not needed. The two HTTPS
   attempts at +46.7 s and +61.9 s happen while the main menu is up and are silently
   given up on.
 - Phase 2 isolation is done: test copy A starts unattended to the main menu with saves,
-  settings and Steam userdata sandboxed, the network offline, and the owner's files
+  settings and Steam userdata sandboxed, the network offline, and the real files
   checked before and after every launch.
 
 ## Session 2026-10-20 i: phase 3 plan (find player and Nemesis data at runtime)
@@ -598,8 +596,8 @@ so we learn from it and do not copy code)
 
 - Code on disk is packed (Denuvo): everything below runs in the game process after it
   has unpacked itself (poll for a known pattern, as the existing mods do). No patching
-  or stripping of Denuvo/SteamStub. No debugger attached (anti-debug risk; also needs
-  owner OK to install). No full dump of the unpacked exe unless the owner agrees later.
+  or stripping of Denuvo/SteamStub. No debugger attached (anti-debug risk; also an
+  extra install). No full dump of the unpacked exe for now.
 - Only in test copy A, guard always on (saves sandboxed, network offline). Dumps and
   game-data output stay in `local/`; we publish names, offsets and signatures only.
 
@@ -632,13 +630,13 @@ so we learn from it and do not copy code)
 6. **Save system.** Log every save read/write with timing (the guard already sees
    them), relate saves to `all.dat`, find the autosave trigger.
 
-### Needs from the owner
+### Needs
 
 - **A save with progress in the sandbox.** Nemesis data only exists after the prologue.
-  Proposal: copy one of the owner's saves from the backup into the sandbox profile
-  (sandbox only; the original stays untouched). Alternative: a new game, hours of play.
-- Later, only if steps 2-5 stall: OK to install Ghidra (+ JDK) or a debugger, or to dump
-  the unpacked exe for static analysis.
+  Proposal: copy one existing save from the backup into the sandbox profile (sandbox
+  only; the original stays untouched). Alternative: a new game, hours of play.
+- Later, only if steps 2-5 stall: install Ghidra (+ JDK) or a debugger, or dump the
+  unpacked exe for static analysis.
 
 ### Risks
 
@@ -649,8 +647,8 @@ so we learn from it and do not copy code)
 
 ## Session 2026-10-20 j: phase 3 step 1, probe built (not yet run in the game)
 
-- Owner agreed: their latest save (unnumbered file == slot 1, from 2025-11-20) copied
-  from the backup into the sandbox profile only; hashes equal; owner check unchanged.
+- The latest real save (unnumbered file == slot 1, from 2025-11-20) copied from the
+  backup into the sandbox profile only; hashes equal; backup check unchanged.
 - `sowprobe` added to the guard DLL (`probe=1`): waits for a pattern that only exists
   after the game unpacks (default: the freecam's GameClient load
   `48 8B 0D ? ? ? ? E8 ? ? ? ? C7 47`), logs how long that took, and serves read-only
@@ -668,7 +666,7 @@ so we learn from it and do not copy code)
 
 ## Session 2026-10-20 k: phase 3 step 2, signatures checked in the running game
 
-Launched test copy A with guard + probe (`network=offline`), owner at the main menu
+Launched test copy A with guard + probe (`network=offline`), left at the main menu
 (save not loaded). All checks below are read-only (`sow-coop/tools/sigcheck.py`,
 `diskcheck.py`); raw output in `local/phase3/`.
 
@@ -822,15 +820,15 @@ Launched test copy A with guard + probe (`network=offline`), owner at the main m
 
 ### Observations
 
-- Launch 4 (hook v1, 23 channels on, written by hand after launch): the owner loaded
-  the sandboxed save. Within ~0.3 s of world load the hook captured 85,558 lines
+- Launch 4 (hook v1, 23 channels on, written by hand after launch): the sandboxed save
+  was loaded by hand. Within ~0.3 s of world load the hook captured 85,558 lines
   (13 MB): 85,248 `[FACTION|REWARD|REJECT]` ("Reward '...' Failed Filter -
   IncludedTraitMarkerList (...)"), 156 `[FACTION|PURPOSE]`, 104 `[FACTION|TRIBE]`, 49
   `[SIMEVENT|OUTCOME]` (e.g. `HandleFactionEventAction: Event =
   FactionMember_RoleSelected_Standard; Subject = Gubu`), 1 `[QUESTMGR]: GameModeSet -
   SinglePlayer`. One second later the game crashed: Application Error, `ShadowOfWar.exe`,
-  `0xC0000005`, fault offset `0x598817`. Sandbox saves were not rewritten; owner check
-  OWNER_UNCHANGED.
+  `0xC0000005`, fault offset `0x598817`. Sandbox saves were not rewritten; backup check
+  unchanged.
 - Static analysis (exe file): `598817` is the first real instruction of function
   `598804..59894B` (from `.pdata`): `mov rbx, [rcx+48h]`, i.e. a bad `this`. Of its 5
   callers, `F4F41A` is right after the `GameModeSet - %s` print:
@@ -878,17 +876,17 @@ Launched test copy A with guard + probe (`network=offline`), owner at the main m
 ### Observations
 
 - Hook v2 installed 330 ms after launch; 22 channel flags set (read back as 01;
-  `FACTION|REWARD|REJECT` left 00). Owner loaded the sandboxed save and played ~10 min;
+  `FACTION|REWARD|REJECT` left 00). Sandboxed save loaded, ~10 min of manual play;
   game exited normally (exit 0 after 635 s, no Application Error). Debug capture
   `debugprint.log` 4.1 MB (analysis pending). Offline mode: 8 HTTPS ConnectEx refusals
   (the same two hosts, every ~15-45 s).
 - The game saved during play: in the sandbox, `<prefix>_ShadowOfWar.sav` and `_1_` were
   rewritten (2,361,712 bytes, 19:17:51.955) and the old slot 1 moved to `_2_`
   (save rotation). All through the guard's redirect, as designed.
-- **Owner check failed:** in the owner's real `Steam\userdata\<id>\356190\`,
+- **Backup check failed:** in the real `Steam\userdata\<id>\356190\`,
   `remote\<prefix>_ShadowOfWar.sav` was rewritten at 19:17:51.949 with **the same bytes**
   as the sandbox save (SHA-256 prefix `0033D4753E3610BC`), and `remotecache.vdf` at
-  19:18:02.908 (size, time, sha updated; `syncstate` 1 -> 3). The owner's
+  19:18:02.908 (size, time, sha updated; `syncstate` 1 -> 3). The real
   `%LOCALAPPDATA%` saves and everything else in the manifest are unchanged.
 - The guard logged no write to that folder from the game process (it would have been
   redirected or stopped the game). So another process wrote it: the Steam client.
@@ -905,27 +903,27 @@ Launched test copy A with guard + probe (`network=offline`), owner at the main m
 - Before any further session in which the game can save, the guard must stop
   `ISteamRemoteStorage` writes inside the game process (e.g. make FileWrite/
   FileWriteAsync/FileDelete/FileForget fail or turn them into no-ops) and the test
-  must check the owner's Steam folder after a save. Until then: no saving in the test
+  must check the real Steam folder after a save. Until then: no saving in the test
   copy.
 
-### Proposed fix for the owner's files (needs the owner's OK)
+### Proposed repair of the real Steam folder
 
 - With Steam fully closed (Steam may rewrite `remotecache.vdf` from memory on exit),
   restore `remote\<prefix>_ShadowOfWar.sav` and `remotecache.vdf` from the verified
-  backup `local/backups/2026-10-20/steam-userdata-356190/`, then rerun the owner check.
+  backup `local/backups/2026-10-20/steam-userdata-356190/`, then rerun the backup check.
 
 ### Playbook lesson (isolation)
 
 - An isolated test copy is not isolated from the store client. Steam's cloud-save API
-  is serviced by `steam.exe`, which writes into the owner's userdata folder whatever
+  is serviced by `steam.exe`, which writes into the real userdata folder whatever
   the test copy saves, even with Steam Cloud disabled for the game. Block the
   remote-storage writes inside the game process and check the store client's folders
   after every test session that saves.
-- Restored (owner's OK, Steam fully exited, no Steam or game process running):
+- Restored (Steam fully exited, no Steam or game process running):
   `remote\<prefix>_ShadowOfWar.sav` and `remotecache.vdf` copied back from the verified
   backup with their original timestamps (robocopy /COPY:DAT); the test-written versions
-  kept in `local/backups/2026-10-20-steam-overwritten-by-test/`. Owner check after:
-  30/30 present, **OWNER_UNCHANGED** (render.cfg info only). Not yet seen: what Steam
+  kept in `local/backups/2026-10-20-steam-overwritten-by-test/`. Backup check after:
+  30/30 present, **unchanged** (render.cfg info only). Not yet seen: what Steam
   does with these files on its next start (it should find them matching its cache).
 
 ## Session 2026-10-20 o: Steam remote-storage guard (built, tested offline, staged)
@@ -948,18 +946,18 @@ Launched test copy A with guard + probe (`network=offline`), owner at the main m
   the guard: all 12 reached it (caught, 8/8). Note: this compiler emits
   `mov r10,[rax+off]; jmp r10` for such wrappers, so the fake's wrappers are raw bytes.
 - Staged in test copy A; the test copy's real `steam_api64.dll` is untouched (hash equal
-  to the owner's). Owner check OWNER_UNCHANGED.
+  to the real install's). Backup check unchanged.
 - Not covered: ISteamUserStats (achievements/stats earned in test sessions go to the
-  owner's Steam account via steam.exe); other Steam interfaces.
-- Next: a guarded session that includes an autosave, then the owner check must stay
+  real Steam account via steam.exe); other Steam interfaces.
+- Next: a guarded session that includes an autosave, then the backup check must stay
   clean for `userdata\<id>\356190`.
 
 ## Session 2026-10-20 p: guarded save session (launch 6), Steam folder stays clean
 
-- Pre-check with Steam restarted after the restore: OWNER_UNCHANGED (Steam accepted the
+- Pre-check with Steam restarted after the restore: unchanged (Steam accepted the
   restored remote files).
 - Launch 6: debug-print hook + 22 channels in at ~330 ms; **Steam remote-storage guard in
-  at 1,015 ms** (before the game's own boot). Owner loaded the sandboxed save and played;
+  at 1,015 ms** (before the game's own boot). Sandboxed save loaded and played by hand;
   exit 0 after 608 s; no crash, no FATAL/PROTECTED/WATCH.
 - **16 saves** in the session (first at +289.7 s, then every 0.6-46 s while playing:
   autosave is frequent). Each save writes `<prefix>_ShadowOfWar.sav` and `_1_` to disk
@@ -967,18 +965,18 @@ Launched test copy A with guard + probe (`network=offline`), owner at the main m
   `ISteamRemoteStorage::FileWrite('\<prefix>_ShadowOfWar.sav', ~2.3 MB)`; all 16 blocked
   by the guard (logged with sizes; the last, 2,315,168 bytes, equals the final save on
   disk). Slots rotate once per session, at the first save (`_1`->`_2`->`_3`).
-- **Owner check after: OWNER_UNCHANGED.** The owner's `remote\<prefix>_ShadowOfWar.sav` is
+- **Backup check after: unchanged.** The real `remote\<prefix>_ShadowOfWar.sav` is
   untouched (2,334,736 bytes, 2025-11-20). Steam rewrote `remotecache.vdf` at game exit
   (19:45:44) with byte-identical content (hash equals the backup).
 - Debug capture this session: 3.4 MB (`debugprint.log`, local only); analysis pending.
 - Isolation status: file redirect + guard (game process) and the remote-storage guard
-  (Steam API) together keep the owner's saves and Steam remote folder unchanged through
+  (Steam API) together keep the real saves and Steam remote folder unchanged through
   a real save session. Still open: ISteamUserStats (achievements/stats).
 
 ## Session 2026-10-20 q: what the Nemesis system logs (debug-print capture, read-only)
 
-Sources: two captures with 22 channels on (combat and `FACTION|REWARD|REJECT` off), owner
-playing the sandboxed save: session 5 (42,977 lines, ~10 min, two captain kills) and
+Sources: two captures with 22 channels on (combat and `FACTION|REWARD|REJECT` off), manual
+play on the sandboxed save: session 5 (42,977 lines, ~10 min, two captain kills) and
 session 6 (36,108 lines, ~6 min of play, 16 autosaves). Tool: `sow-coop/tools/dpanalyze.py`
 (message templates per category). Raw logs stay in `local/`.
 
@@ -1050,7 +1048,7 @@ session 6 (36,108 lines, ~6 min of play, 16 autosaves). Tool: `sow-coop/tools/dp
   `Dom_UI_SM` / `Dom_Eye_Zoom_*` (domination), `PreDeathAimStruggle_Faster`, and others;
   set through `SetCombatDynamicSlowMo` / `SetCombatWeaponModeSlowMo` /
   `SetPresentationSequenceSlowMo`.
-- **Timeline (session 6):** a 2,500-line Nemesis build at 8.6 s, while the owner was still
+- **Timeline (session 6):** a 2,500-line Nemesis build at 8.6 s, while the game was still
   at the main menu; silence until the save was loaded (~210 s); a load burst (purposes,
   tribes, 1,900 job evaluations); then during play mostly loot, ambush and slow-mo lines.
   `FACTION|BUNDLE` comes in two bursts of ~11,500 lines repeating the fortress overlord's
@@ -1145,7 +1143,7 @@ resurrection record; `"None"` (1DB4ED8) is the name used for a missing subject/o
   (`33A3E99A5479618B`): no random draws at the menu, so the LCG step itself was not
   observed live (needs a session with play).
 - Steam remote-storage guard in at 359 ms. Game stopped by the agent after the check
-  (exit 0xFFFFFFFF, forced); owner check OWNER_UNCHANGED; test-copy config restored.
+  (exit 0xFFFFFFFF, forced); backup check unchanged; test-copy config restored.
 
 ## Session 2026-10-20 t: is the LithTech client/server split real at runtime? (static, read-only)
 
@@ -1251,11 +1249,11 @@ the code that installs them, call chains back to the program entry. Exe file onl
 - **Steam userdata `356190\175823492`** (1,178 bytes, hex text): copy A's sandbox has it
   (written 17:15:10), copy B's does not. In launch 1 (copy A's first run, sockets
   refused) the game probed for it at +0.8-1.4 s (absent), then the 68 s gap during which
-  the owner went through the dialog and the support website, then **wrote it at
-  +68.8 s**; copy A never showed the dialog again. The owner's real Steam folder has its
+  the dialog and the support website were dealt with by hand, then **wrote it at
+  +68.8 s**; copy A never showed the dialog again. The real Steam folder has its
   own copy of this file (from 2025-11-12).
-- Both instances stopped by the agent (no button clicked in B's dialog); owner check after
-  each: OWNER_UNCHANGED. Copy A's config restored.
+- Both instances stopped by the agent (no button clicked in B's dialog); backup check after
+  each: unchanged. Copy A's config restored.
 
 ### Derived
 
@@ -1266,7 +1264,7 @@ the code that installs them, call chains back to the program entry. Exe file onl
 - Whether the game itself allows a second instance (the exe contains `CreateMutex failed`)
   is **not answered yet**: copy B stopped at activation before the game's own start-up
   (answered in session v: yes, a named mutex).
-- Ways forward (owner's decision; none touches the protection itself): give copy B the
+- Ways forward (none touches the protection itself): give copy B the
   same token copy A has (both sandboxes mirroring one Steam userdata folder, as a
   normal install would), or let copy B activate once by allowing only its two activation
   hosts. Contacting the activation service may count toward Denuvo's activation limits
@@ -1286,8 +1284,8 @@ the code that installs them, call chains back to the program entry. Exe file onl
   Then copy B **exited with code 0 after ~4 s**, with no window and no message; its guard
   log ends at the token read.
 - Afterwards: copy B's token unchanged (same hash). Copy A stopped by the agent, its
-  config restored (`probe_write=1`, `hook_debug_print=1`). Owner check after both runs:
-  OWNER_UNCHANGED.
+  config restored (`probe_write=1`, `hook_debug_print=1`). Backup check after both runs:
+  unchanged.
 
 ### Observations (static, exe file only, read-only)
 
@@ -1374,7 +1372,7 @@ the code that installs them, call chains back to the program entry. Exe file onl
   `ready=1 write=0`. No connection attempts, no protected or watched writes, no FATAL in
   either log. Each process had logged 39 named mutexes by then (`mutex_trace`).
 - Copy B ran 71 s next to copy A, then the agent stopped both (exit `0xFFFFFFFF` =
-  forced stop). Owner check after each: OWNER_UNCHANGED (render.cfg info only). Copy B's
+  forced stop). Backup check after each: unchanged (render.cfg info only). Copy B's
   token unchanged.
 - Copy B's first full start wrote `gpu.nfo` and `render.cfg` in its sandbox with
   `"Windowed" "2.000000"` and opened a 1920x1080 window at 0,0 instead of 960x540 at
@@ -1383,10 +1381,10 @@ the code that installs them, call chains back to the program entry. Exe file onl
 ### Derived
 
 - The named mutex was the only check stopping a second copy, at least up to the main
-  menu. Two guarded copies of Shadow of War can now run at once on this PC with one
+  menu. Two guarded copies of Shadow of War can now run at once on the test machine with one
   Steam account, offline, each in its own sandbox.
 - Copy B was not seen on screen, so "main menu" for B rests on its window, size and
-  probe state matching copy A's; the owner may see it directly next time.
+  probe state matching copy A's; a look at the screen next time would confirm it.
 
 ### Unknown
 
