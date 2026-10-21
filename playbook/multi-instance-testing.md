@@ -58,7 +58,7 @@ Many games refuse to start a second copy. Two mechanisms are common:
 
 | Check | How it works | Symptom |
 |---|---|---|
-| Named mutex | The game calls `CreateMutex` with a fixed name at start up and exits if the name already exists (`ERROR_ALREADY_EXISTS`) | The second copy shows an error box or closes within a second or two, with a non-zero exit code |
+| Named mutex | The game calls `CreateMutex` with a fixed name at start up and exits if the name already exists (`ERROR_ALREADY_EXISTS`) | The second copy shows an error box or closes within a few seconds. Do not rely on the exit code: Middle-earth: Shadow of War returns 0 (after its DRM start-up, ~4 s) |
 | Window class or title | The game calls `FindWindow` for its own class or title and exits or activates the old window when it finds one | Same, or the first copy's window jumps to the front |
 
 How to tell which one: watch the second copy with Process Monitor or API Monitor for `CreateMutex` and

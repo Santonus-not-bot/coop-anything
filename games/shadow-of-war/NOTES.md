@@ -1147,7 +1147,7 @@ resurrection record; `"None"` (1DB4ED8) is the name used for a missing subject/o
 - Steam remote-storage guard in at 359 ms. Game stopped by the agent after the check
   (exit 0xFFFFFFFF, forced); owner check OWNER_UNCHANGED; test-copy config restored.
 
-## Session 2026-10-21 t: is the LithTech client/server split real at runtime? (static, read-only)
+## Session 2026-10-20 t: is the LithTech client/server split real at runtime? (static, read-only)
 
 Method: strings and their code references, references to registry entries, vtables and
 the code that installs them, call chains back to the program entry. Exe file only
@@ -1223,7 +1223,7 @@ the code that installs them, call chains back to the program entry. Exe file onl
   connect requests and the manager's mesh pointer during a session (`net_trace=1`).
 - Whether the NetMesh layer is complete and usable as a transport.
 
-## Session 2026-10-21 u: second test copy and a two-instance attempt
+## Session 2026-10-20 u: second test copy and a two-instance attempt
 
 ### Copy B
 
@@ -1264,9 +1264,77 @@ the code that installs them, call chains back to the program entry. Exe file onl
   after the first activation all fit; not confirmed by a source). Because the guard
   sandboxes `userdata\<id>\356190` per copy, every new copy looks unactivated.
 - Whether the game itself allows a second instance (the exe contains `CreateMutex failed`)
-  is **not answered yet**: copy B stopped at activation before the game's own start-up.
+  is **not answered yet**: copy B stopped at activation before the game's own start-up
+  (answered in session v: yes, a named mutex).
 - Ways forward (owner's decision; none touches the protection itself): give copy B the
   same token copy A has (both sandboxes mirroring one Steam userdata folder, as a
   normal install would), or let copy B activate once by allowing only its two activation
   hosts. Contacting the activation service may count toward Denuvo's activation limits
   (unknown how many).
+
+## Session 2026-10-20 v: two instances with a shared license token; the single-instance check
+
+### Observations (launch)
+
+- Copy B's sandbox got its own copy of copy A's `userdata\<id>\356190\175823492` (same
+  SHA-256). Both copies ran with the read-only probe (`probe_write=0`,
+  `hook_debug_print=0`), network offline.
+- Copy A started and reached the main menu (~1.25 GB). Copy B started alongside: guard
+  ready, probe ready after 203 ms, remote-storage guard in at 375 ms, then the game
+  checked for and opened the token through the redirect (`NtQueryAttributesFile`, then a
+  read-only `NtCreateFile`; no write). No activation dialog, no connection attempts.
+  Then copy B **exited with code 0 after ~4 s**, with no window and no message; its guard
+  log ends at the token read.
+- Afterwards: copy B's token unchanged (same hash). Copy A stopped by the agent, its
+  config restored (`probe_write=1`, `hook_debug_print=1`). Owner check after both runs:
+  OWNER_UNCHANGED.
+
+### Observations (static, exe file only, read-only)
+
+- UTF-16 string `Local\{015C2674-4E09-4862-9A60-F96FA41BF0B1}` at RVA `22B5600`, one code
+  reference, in function `11793B8` (`11793B8..11793F3`):
+
+  ```
+  11793C1  lea  r8,[22B5600]     ; the name
+  11793C8  xor  ecx,ecx          ; arg 1 = 0
+  11793CA  xor  edx,edx          ; arg 2 = 0
+  11793CC  call [1D92170]        ; import slot
+  11793D2  mov  [rbx],rax        ; handle kept in the caller's local
+  11793DA  call [1D922A0]        ; import slot, no arguments
+  11793E0  cmp  eax,0B7h         ; 183 -> return 1, else return 0
+  ```
+
+- Its only caller is the engine start-up function `1178D80` (the one that later builds
+  the network manager and reads `-cmdfile ..\cmdline.txt`, session t), at `1178DB6`. If
+  `11793B8` returns 1, start-up calls `1179018` and **returns 0**. The check runs before
+  the `d3d11.dll` load test, the command-line file and window creation.
+- `1179018` reads a window handle from the global at `2C88000`; if it is set, it makes
+  four calls through import slots, one with the argument 9, all on that handle. It is
+  this process's own global, empty this early in a second process. No string, class
+  name or other window lookup on this path.
+- Ruled out as the instance check: `CreateMutex failed` (`A2B8A0`, avMutex library),
+  the user-folder builder (`C23200`), the write-test file `{25FFEBFB-...}` (`C24CA0`).
+
+### Derived
+
+- The silent exit is a named-mutex single-instance check: `CreateMutexW(NULL, FALSE,
+  name)` then `GetLastError() == ERROR_ALREADY_EXISTS` (183), and `1179018` is the usual
+  "restore and bring our window to the front" (`IsWindow`, `IsIconic`,
+  `ShowWindow(SW_RESTORE)`, `SetForegroundWindow`). The import names come from the call
+  shape only: SteamStub rebuilds the import table at run time, so the slots are not
+  named in the file. Live check (read-only, cheap): the probe's `deref` on `1D92170`,
+  `1D922A0` and the four `1D92xxx` slots of `1179018`, then `module` on the targets.
+- Copy B's exit code 0 and timing (~4 s, after Denuvo and the token read) match this
+  path. The playbook's symptom line ("non-zero exit code") does not fit this game.
+- Fix, as in `playbook/multi-instance-testing.md` section 2 option 1: inside our own
+  proxy, give this one name a per-copy suffix. The guard already hooks ntdll syscall
+  stubs; `CreateMutexW` ends in `NtCreateMutant` with the object name
+  `\Sessions\<n>\BaseNamedObjects\{015C2674-...}`, so a `NtCreateMutant` hook that
+  rewrites only this exact name, behind an ini switch only the test copies set, does it.
+  No change to the exe or the protection.
+
+### Unknown
+
+- Whether more instance checks follow later in start-up (lessons.md item 10: checks come
+  in layers): window-class lookups, shared files, Steam's own handling of two processes
+  of one app on one account. The live test after the rename will show.
