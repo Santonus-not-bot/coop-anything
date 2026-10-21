@@ -1634,3 +1634,43 @@ the code that installs them, call chains back to the program entry. Exe file onl
 - Transport, sampling and display work end to end on one PC. The ghost is the LKP effect
   re-created at each update (hence fading and no animation); a real remote player needs a
   puppet character driven by position, rotation and animation state.
+
+## Session 2026-10-21 ab: a real character as the remote player's stand-in (puppet)
+
+### Observations (static)
+
+- No usable spawn command in the release build: `Faction.CreateEmergencyPlayerFollower`
+  is `ret 0` (`7F8F90`); `NemesisForge.CreateFollower`/`CreateNemesis` (`1C775EC`,
+  `1C77604`) create a forge record through `[26FFAA8]+0x6D30`, not a body in the world.
+- Generic object movement: `EF690(object, &quat)` sets rotation (`+0xB8`, 31 callers);
+  `19B7AC4(object, &transform)` (what `Teleport` ends in) forwards to `658CBC(manager
+  [2A86880], object, transform, 1)`, which queues a teleport message (with a timestamp
+  from `[2702598]`) through `659884`; the engine applies it later. The transform is 28
+  bytes: position (3 floats) then quaternion (`1820FC` -> `182110`).
+
+### Observations (live, copy B)
+
+- The player's health object (`[player+0x26A8]`) has class vtable `1F995E0`; its `+0x28`
+  is the owner (the player). `findq` (new, read-only heap search) found 2,108 objects of
+  that class; 22 had an owner whose `+0x26A8` points back: all AI with owner vtable
+  `1FB3640`, health 180 to 600 (one 11,165), the nearest 5,823 units from the player.
+- `coop_show=puppet`: B picked the nearest living character (a 180-health orc 8,606
+  units away), then teleported it to A's position and rotation on every packet from the
+  simulation thread. It landed within ~6 units (the game put it a few units lower,
+  on the ground) with A's rotation; over a 90 s walk 2,540 moves, ending 4.3 units from
+  A's player; both copies kept running.
+- Seen on screen (the person playing copy A by hand): the orc in B "moved the same, but
+  it's a little laggy".
+- The first heap scans read every committed private page and grew B from ~2 GB to
+  6.3 GB. Scans now read only pages already in the working set (`QueryWorkingSetEx`):
+  after a pick B stayed at 2.27 GB. At the world start a pick found 0 characters (2,074
+  health objects, none with a valid owner yet); the retry 10 s later found 23.
+
+### Derived
+
+- An existing AI character can stand in for the remote player: the game's own queued
+  teleport moves it, and its health object identifies it safely.
+- Lag sources: ~16-20 position updates a second (the sender sleeps 50 ms with a ~15.6 ms
+  timer), each applied as a teleport one frame later, with the orc's own AI moving it
+  in between. Next: send at the game's frame rate and interpolate (or extrapolate) on the
+  simulation thread every frame; later stop the puppet's own AI and drive its animation.
