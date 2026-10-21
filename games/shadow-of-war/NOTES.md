@@ -1604,3 +1604,33 @@ the code that installs them, call chains back to the program entry. Exe file onl
 - The units (the stick moved the player ~100 units in 2 s and ~320 in 1.5 s, so likely
   centimetres with acceleration, not checked).
 - Whether health changes as expected when the player is hit.
+
+## Session 2026-10-21 aa: first co-op step, copy A's player shown in copy B
+
+### Observations
+
+- Sender (A, read-only) sends position, rotation and health 20 times a second as 52-byte
+  UDP packets to 127.0.0.1; B received ~19.7/s, 0 lost, 0 bad (3,979 packets in one run).
+- B shows A with the game's own "last known position" effect, `19C0380(player, &pos)`
+  (what console `TestLKP` calls), at most every 200 ms and after a 25-unit move.
+- Calling it from the pad (input) thread crashed B: AV at `315D5D`, because `1309FC`
+  (per-thread engine context: TlsGetValue, then a global) is null there. Calls that
+  allocate need the simulation thread.
+- Probe `count` on the player vtable (`1F96818`, 41 slots, 2 s): slots 18, 25 and 36 run
+  once per frame (58.5/s) on the simulation thread; slot 36 (`30BA10`, ~2.5 KB, 104 calls)
+  is the per-frame update. A register-preserving pre-hook there runs the effect; no crash.
+- An unfocused copy pauses itself (pause menu; the player's position and rotation then
+  read 0,0,0 and identity; controller B button resumed it). With `background_run=1`
+  (focus-loss messages swallowed; `GetForegroundWindow`/`GetActiveWindow` return the
+  copy's own window; `ClipCursor`/`SetCursorPos` ignored unless really in front) A kept
+  simulating (60 updates/s) and walked with the virtual stick while B was focused.
+- Live (both unattended, same save): A walked ~100 units forward then ~320 right; B redrew
+  the effect along the path and ended at A's final position; 277 redraws over a 90 s
+  back-and-forth walk. Seen on B's screen: a ghost of the player that slides without
+  animation and fades in and out, "decently matched up" with A.
+
+### Derived
+
+- Transport, sampling and display work end to end on one PC. The ghost is the LKP effect
+  re-created at each update (hence fading and no animation); a real remote player needs a
+  puppet character driven by position, rotation and animation state.
