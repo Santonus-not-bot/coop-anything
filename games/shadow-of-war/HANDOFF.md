@@ -8,9 +8,10 @@ streams its player over loopback UDP every frame: position, rotation, health and
 inputs of the player's animation graph (stick, speed, turning, camera). Copy B shows a
 spawned Talion stand-in, AI off, moved by A's inputs through its own animation
 (`coop_puppet_move=anim`): it walks, turns and stops with A's stride, feet on the ground,
-and is put back only when it drifts past 150 units or once A stands still. Not carried yet:
-the A button's free-run/jumps, attacks, anything from B to A, and world state (enemies,
-Nemesis, quests, time).
+and is put back only when it drifts past 150 units or once A stands still. Free-run (A
+button) shows the run but falls behind (put back about every 150 units). Not carried yet:
+jumps and attacks (unchecked), anything from B to A, and world state (enemies, Nemesis,
+quests, time).
 
 **Build and tools:** game build 3095001 only (Steam app 356190). Our guard DLL
 (`bink2w64.dll` proxy) and probe live in the private `local/sow-coop` repo. Offline tests
@@ -34,10 +35,12 @@ not pushed.
 - A test that runs sender and receiver in one process can hide receive-side bugs.
 
 **Next steps:**
-1. Carry free-run/jumps: find how the A button reaches the player's graph (an event or
-   state request, not one of the 25 floats or the three per-frame bools).
-2. Steadier drift correction through `DeltaYaw` (it turns the stand-in), tested on a
-   repeatable path.
+1. Free-run speed: the stand-in runs with A's stride but slower (put back every ~150 units).
+   The graph gets no extra message during free-run (probe `trace`), so look at the
+   player's movement code for where free-run speed comes from, and drive the stand-in's
+   speed the same way.
+2. Steadier drift correction, tested on a repeatable path: `DeltaYaw` turns the stand-in;
+   writing its position each frame made drift worse.
 3. Make it two-way (B to A).
 4. Then world state: host authority for enemies and Nemesis events, and a real network
    transport.

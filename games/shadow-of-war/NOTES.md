@@ -2131,3 +2131,27 @@ A condensed view of sessions a to af above; the sessions keep the evidence and s
 - How the A button's free-run and jumps reach the player's graph.
 - Attacks, hits and other actions: not carried.
 - Drift on long walks with obstacles only on B's side (the stand-in is blocked, A is not).
+
+### Session ag, continued: free-run and drift corrections
+
+#### Observations (live)
+
+- Free-run (A button held), captured from B: the stand-in runs with a long, fast stride,
+  so the inputs do carry the run animation. It still falls behind: over 0.7 s legs the gap
+  reached 130-150 units (mean 32-65) and it was put back 1-3 times.
+- A call trace (new probe `trace`: an execute breakpoint on `176EFC`, which every message
+  to a graph calls with the graph in `rcx`) on A's player's graph, 600 ms walking against
+  600 ms free-running: the same senders both times (`176E40` floats ~1,300, `375110` bools
+  ~106, `41C028` ~35, one rare). Free-run adds no message kind; only the values change
+  (`PlayerVelocity` 543 instead of ~130).
+- Writing the stand-in's position directly (`+0xAC`, `+0xB4`) moves the model (captures
+  before and after a 100-unit write, idle pose kept). Used as a per-frame correction toward
+  A while walking (a share of the gap, capped at 4-8 units a frame or 12% of A's speed) it
+  made the drift worse in every alternating run (mean 39-67 against 11-31 without), so it
+  is not used.
+
+#### Derived
+
+- The free-run gap is speed, not pose: A's free-run speed comes from somewhere other than
+  the run animation's root motion (likely the player's movement code), so the stand-in's
+  stride matches but its speed does not. The 150-unit put-back hides it for now.
