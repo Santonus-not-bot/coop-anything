@@ -475,7 +475,8 @@ local player's position and world id. Difficulty: easy on Unity/mod-loader games
 2. Spawn a puppet from the game's own NPC or player model. Disable its AI and input.
    Drive it from received state with interpolation. Without a spawn API, an existing NPC
    can be taken over: skip its decision call and feed the game's own move request so its
-   walk animation plays (Shadow of War; see
+   walk animation plays, or spawn a cutscene copy of the player character and give it the
+   player's own animation graph (Shadow of War; see
    [reverse-engineering.md](reverse-engineering.md#reading-and-driving-live-state-from-inside-the-game)).
 3. Handle disconnect (despawn) and cell/level mismatch (hide puppets in other
    levels).

@@ -94,6 +94,18 @@ you a log, a script channel and native commands in one step. Worked out on Far C
   gait), which plays its own walk and run animations. In Shadow of War that request alone
   followed the player badly (its own navmesh route, 1.5 s late), so the puppet is pinned
   to the player's position every frame while the requests make it walk or run.
+- **Find what sets a field, live.** When no instruction writes the field directly (it is
+  set through a sub-object or a helper), put a hardware write watch on it from inside the
+  game: on the thread that will write it, `SetThreadContext(GetCurrentThread())` with `Dr0`
+  = the address and `Dr7` = enable, write, length; a vectored exception handler catches the
+  `EXCEPTION_SINGLE_STEP`, records `Rip` and unwinds the stack from the exception's
+  context, then clears `Dr7`. In Shadow of War one spawn with the watch armed named the
+  code that switches a new character on (it waits for its behavior resource).
+- **A second player character from a cutscene actor.** If the game has a cutscene or
+  scripted version of the player character, spawn that and hand it the player's own
+  animation/behavior graph: in Shadow of War the cutscene `Talion` stood in a T-pose until
+  it got the player's behavior resource, then switched on and walked with the player's
+  animations. Putting the player's look on an AI body failed while the skeletons differed.
 
 ## What to map for co-op
 

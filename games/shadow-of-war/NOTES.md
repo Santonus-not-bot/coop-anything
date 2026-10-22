@@ -1878,3 +1878,70 @@ the code that installs them, call chains back to the program entry. Exe file onl
 
 - How an NPC's appearance (`+0x2B30`, type `0xA66`) is applied and rebuilt.
 - Whether `GP_Ranger` or `Gondorian_Soldier` use Talion's skeleton and animations.
+
+## Session 2026-10-21 af: the puppet is a Talion now (spawned, animated, AI off)
+
+### Observations (static, build 3095001)
+
+- Appearance (type `0xA66`) is applied by the character's virtual `+0x440` (`3FAFA4` for AI
+  characters; the player's `19BF404` calls it and adds bundle bookkeeping). At creation the
+  set-up `3FAAEC` (AI class slot 12) reads the spawn type's appearance with `16680C`
+  (call at `3FAB81`) and builds the model from it (`3FA678`).
+- The appearance record's fields have hashed names (descriptor at entry `+8`: 16-byte
+  entries, low 32 bits = the game's name hash). Hashing the exe's strings named the fields
+  of the first 128 entries read, among them `ModelRecord`, `Skeleton`, `BehaviorResource`, `CharacterModelPicker`,
+  `CombatTree`, `AISimulationConfig`, `PlayerMovement`, `ProceduralBody`. The field block
+  (entry `+0x10`) has a fixed layout per type; read live: `+0x148` model (type `0xA19`),
+  `+0x188` AI template, `+0x1C8` skeleton, `+0x1F0` animation base, `+0x280` body.
+- Gondorian humans and orc infantry share `Skeleton_Default` and the `OrcInfantry`
+  animation set; Talion records use `PlayerSkeleton`. `GP_Ranger` is an olog-hai and
+  `Human_Ranger` an orc archer, despite the names. `AI_Talion` (appearance) is complete
+  (PlayerSkeleton, AI template, `talion_anim_base`) but its model is `dcBL_DarkTalion`.
+- A character switches on (the byte at character `+0x19A8`, which the AI tick checks; `+0x18`
+  in a block at `+0x1990`) in `3F0D88`, called each frame from `E7D070` on its animation object (character
+  `+0x120`): only once the animation resource (`+0x1990`) and the behavior resource
+  (`+0x1998`) are set, loading is done and the behavior instance (`anim+0x4A8`, its
+  `+0x10`) exists. Found with a hardware write watch on the flag (spawn, then the write's
+  call stack: `3F0E73` <- `E7D070` <- `2FEEC0` <- ... the frame update). `459474` is the
+  animation object's virtual "set behavior resource" (`+0x4B0` and `+0x1878`).
+
+### Change (sow-coop, local)
+
+- `spawn <type> x y z [appearance | abs:<record> | watch]`: the appearance lookup at
+  `3FAB81` goes through a filter that answers with the given appearance during that one
+  spawn; `watch` arms the write watch on the new character's switch-on flag (probe `watch`
+  shows the hits). The report says what it wears and whether it is switched on.
+- `look <base> <donor> <offset...>`: a private copy of an appearance record with some
+  fields from another. `animres <character> <resource>`: set a behavior resource.
+- `coop_puppet_spawn=<type>`: instead of taking over the nearest character, B spawns one of
+  that type at the sender's position, gives it B's own player's behavior resource
+  (`player+0x1998`) and uses it as the puppet. B's test copy now uses `Talion`.
+- The spawn path is checked only live (no offline test yet).
+
+### Observations (live, copy B)
+
+- Talion appearances on AI spawn types: `AI_Talion` and the player skins made the game
+  create nothing; `Cine_Talion` was created but never switched on. A hybrid
+  `Gondorian_Soldier` with Talion's model rendered as a bald dark body (the Gondorian assets
+  are not loaded in this region; a plain `Gondorian_Soldier` was the same); an
+  `Orc_Infantry` with Talion's model switched on but showed only pieces of the model.
+- The `Talion` type with B's player's behavior resource switched on at once and stood in a
+  natural pose. With `coop_puppet_spawn=Talion`, B spawned it 10 s after the world started
+  (the first try found no characters yet), made it the puppet with AI off, and pinned it to
+  A: screenshots show Talion (classic outfit) beside B's player, then walking away with a
+  full stride, cloak swinging, while A walked.
+- One more incident: after several test spawns at one spot, an olog fought B's player
+  (health down to 216 of 708); B was restarted.
+
+### Derived
+
+- Taking Talion's appearance onto an AI body does not work while the skeletons differ; the
+  cutscene `Talion` actor plus the player's own behavior graph does, and the existing AI-off
+  and walk/run drive work on it unchanged.
+
+### Unknown
+
+- Whether the player's graph reads every variable the AI motion writes (run, turns,
+  stopping) the way it reads them for the player.
+- Whether other characters treat the stand-in as Talion (targets, factions).
+- Foot sliding: not measured for this body yet.
