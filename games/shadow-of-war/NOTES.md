@@ -1820,3 +1820,61 @@ the code that installs them, call chains back to the program entry. Exe file onl
   test orc no longer answered standalone requests).
 - Why standalone requests stop moving the orc after a while.
 - What the orc does with its tree skipped when B's player attacks it, or when it is hit.
+
+## Session 2026-10-21 ae: a second Talion in copy B (spawned), not animated yet
+
+### Observations (static, build 3095001)
+
+- `Player.SetCharacterModelOverride <name>` (`19C0EFC`, handlers take `(int argc, const
+  char** argv)`) looks the name up with `1B08BB0` and calls `19BF4B8(player, record, 0)`;
+  `Player.ClearCharacterModelOverride` calls `19BB3CC(player, [player+0x2B30], 0)`. Both
+  use player-only fields (`+0x2EC8`..`+0x2EE0`): not usable on an NPC.
+- Records are 40-byte entries in per-type tables (count `+0x28`, array `+0x38`): type id
+  `+0`, name hash `+4` (`423E70`: `h = h*0x397 + table[c]`), name `+0x20`. Two tables
+  share many names: type `0xA66` (281 entries, `[27018B8]`, what `1B08BB0` searches) is a
+  character's appearance (`[character+0x2B30]`: the player wears
+  `PlayerSkin_DarkTalion_ShadowWar`, an orc `Orc_Infantry`); type `0xA06` (177 entries)
+  holds spawnable character types. An AI character keeps its own spawn type at `+0x2E68`,
+  whose `+0x18` is that table. Names include `AI_Talion`, `Talion`, `Dark_Talion`,
+  `GP_Ranger`, `Gondorian_Soldier`.
+- Spawning (call chain recorded live with `stacks` on the AI constructor `49B858` and on
+  `1036D0`, 16 spawns in 20 s): spawner sets -> `1045EC` -> `1036D0(context
+  [[26FFAB0]+0xF58], name, &transform (position, quaternion), spawn-type record, 1, 1, 0,
+  0, 0)` -> `1038F0` -> object factory. The game's queued spawn requests (`1A9290C` and
+  neighbours) then store the region (`[obj+0x26F0] = 168DA8(obj, 0, 0)`) and area
+  (`35DC38(obj, 607610(obj, 0, 0), 0)`); both helpers pass `rdx`/`r8` on, so they must be 0.
+  `501DA4` makes the name unique (appends a number), so any name works.
+
+### Change (sow-coop, local)
+
+- Probe `spawn <type> [x y z]`: finds the type in the `0xA06` table (through the current
+  puppet), calls `1036D0` on the simulation thread with the player's rotation, then the
+  region/area steps and `10AFB0` (the character set-up the spawner path ends with); all
+  functions byte-checked. No offline test yet.
+- Probe `stacks` also reports the first call's `rcx, rdx, r8, r9` per stack.
+
+### Observations (live, copy B)
+
+- `Orc_Infantry`, `GP_Ranger`, `Gondorian_Soldier`, `Talion`, `Dark_Talion` spawned next to
+  B's player; `AI_Talion` created nothing (its record's first fields are null: a stub in
+  this build). Spawned AI types switch themselves on (`+0x19A8` = 1) and act on their own
+  (the orc walked off; after five spawns on one spot next to B's player the next screenshot
+  showed a fight with a hit counter).
+- `Talion` (screenshot): Talion's face and classic ranger outfit, standing in a T-pose;
+  `+0x19A8` stays 0, so the AI tick skips it and its position does not follow the
+  teleports. Writing 1 there by hand made its AI tick run (the tree filter skipped its
+  tree), but it stayed in the T-pose: a cutscene actor without the AI animation set.
+- First try of the region/area steps without the zero arguments crashed B (access
+  violation in `11FBC8` called from `35DC38`); fixed by passing 0, as the game does.
+
+### Derived
+
+- The game can make a Talion look-alike on demand, but the only Talion types in this build
+  are either an empty AI stub or an actor without AI animations.
+- Likely ways forward: put a Talion appearance on an animated human AI type (human
+  skeleton like Talion's), or give the Talion actor an AI animation set. Neither is found yet.
+
+### Unknown
+
+- How an NPC's appearance (`+0x2B30`, type `0xA66`) is applied and rebuilt.
+- Whether `GP_Ranger` or `Gondorian_Soldier` use Talion's skeleton and animations.
