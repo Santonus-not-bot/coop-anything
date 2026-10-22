@@ -1945,3 +1945,97 @@ the code that installs them, call chains back to the program entry. Exe file onl
   stopping) the way it reads them for the player.
 - Whether other characters treat the stand-in as Talion (targets, factions).
 - Foot sliding: not measured for this body yet.
+
+## Status summary 2026-10-21 (end of day, written for a context refresh)
+
+A condensed view of sessions a to af above; the sessions keep the evidence and sources.
+
+### Where we are
+
+- Phases 0-4 (triage, research, workspace, understanding, choice) are done; we are in
+  phase 5 (build). Decision: build co-op from zero (no usable prior mod), host-authoritative,
+  our own sync and transport.
+- First co-op step works one way on one PC: copy A streams its player (position,
+  rotation, health) over loopback UDP every frame; copy B shows a stand-in Talion that
+  follows A, 50 ms behind, interpolated, with its own AI off and walking with the player's
+  animations. Nothing goes from B to A yet; no world state is shared.
+- QA level: offline tests (`test_guard`, 40 of 40; negative control 17 of 17) plus live
+  checks by the agent (probe numbers, window captures). The spawn path is checked live only.
+
+### Key technical facts (build 3095001; RVAs from image base 0x140000000)
+
+- Identity: Steam app 356190, build 3095001, `ShadowOfWar.exe` FileVersion 1.0.8874.0,
+  SHA-256 `ed0d95ca…0bdaef` (full value in session b). SteamStub, Denuvo likely; code in
+  `.arch`; the import table is rebuilt at runtime in `.xtext`. Engine "Kraken" (LithTech
+  lineage, sources under `Game\ObjectDLL`, `ClientShellDLL`, `Shared`).
+- LithTech client/server is **not** a runtime split here (one process, one world); a
+  NetMesh peer layer exists but nothing uses it (session t). Hence our own sync.
+- Nemesis: `HandleFactionEventAction` 40C304, `RollResurrection` 6DBD4C,
+  `SimEvent::Simulate` 622A84 and others (sessions r, s); outcomes come from one global LCG
+  (state 2A25C88), so clients must never roll; `Faction.Save`/`Load` console programs exist.
+- Saves are loaded through the Steam cloud API (`ISteamRemoteStorage::FileRead`); the
+  single-instance check is a named mutex (sessions v, y).
+- Player: `[[GameClient 26FFA98]+0x888]`, position `+0xAC`, quaternion `+0xB8`, health object
+  `+0x26A8`. Engine calls that allocate must run on the simulation thread; we hook the
+  player vtable `1F96818` slot 36 (per frame).
+- AI characters (vtable `1FB3640`): AI tick slot 119 (`2F79A4`); the behavior-tree call at
+  `2F7B40` (we filter it for the puppet); movement controller `[character+0x2C78]`, move
+  request `3F4BD8` (destination, walk/run, through the navigator); animation variables are
+  named (hash `423E70`).
+- Records: appearance type `0xA66` (table `[27018B8]`, lookup `1B08BB0`; field block with
+  `+0x148` model, `+0x1C8` skeleton) and spawnable types `0xA06` (found through any AI
+  character's `+0x2E68`). Spawn: `1036D0(world ctx [[26FFAB0]+0xF58], name, transform,
+  type, 1, 1, 0, 0, 0)`, then region/area (`168DA8`, `607610`/`35DC38`, with zero args) and
+  `10AFB0`. A character switches on (`+0x19A8`, set in `3F0D88`) only once its behavior
+  resource (`+0x1998`, setter `459474`) is set.
+- The stand-in: the `Talion` spawn type is a cutscene actor (T-pose); given B's own player's
+  behavior resource it switches on and animates. `AI_Talion` is a stub in this build;
+  Talion's model on orc or human AI bodies does not work (different skeleton, assets).
+
+### Guard, test copies and tools (state now)
+
+- `sowguard` (a `bink2w64.dll` proxy, our own code in the private `sow-coop` repo under
+  `local/`): file redirect into a per-copy profile, writes to the owner's install/saves
+  blocked, offline network (loopback only), Steam cloud sandbox and stats/achievements
+  write block, per-copy mutex rename, virtual pad and unattended loading, background
+  running, simulation-thread hook, co-op send/receive, puppet modes, and the probe pipe
+  (read, scan, findq, player, pad, save, teleport, stacks, watch, spawn, look, animres,
+  puppet ..., remote).
+- Two test copies (A sender, B receiver) are copies of the install under
+  `local/test-installs/`; the owner's install and saves are untouched (owner check
+  passes on every launch). Copy B runs `coop_show=puppet`, `coop_puppet_ai=off`,
+  `coop_puppet_move=both`, `coop_puppet_spawn=Talion`; copy A runs `coop_send`.
+- Launch: `local/launch-sow.ps1 -Copy a|b -TimeoutSec 7200 -AllowOthers`, A first; each
+  copy reaches the world unattended in about 48 s.
+- Commits: hub branch `game/shadow-of-war` at `fdb75fd`, 15 commits ahead of PR #99's
+  branch, not pushed; `sow-coop` at `fb752b4`, local only.
+- Several helper scripts used this session (wait for the world, window capture, record
+  listing, disassembly annotations) are still in the agent's temporary scratchpad, outside
+  the repo.
+
+### Open questions and biggest risks
+
+- Only one direction, one PC, loopback: no real transport yet (Steam networking is the
+  likely choice), no latency or loss handling beyond interpolation.
+- No shared world: enemies, Nemesis, quests, time and RNG all run separately per copy.
+  This is the largest remaining piece.
+- Stand-in quality unverified: turning, stopping, running, foot sliding; whether other
+  characters treat it as Talion (it might be attacked or ignored); no attacks or combat
+  shown.
+- Everything depends on build 3095001 RVAs (all byte-checked, refused on mismatch); a game
+  update breaks it.
+- Code patches and a debug-register watch ran fine in test copies; long sessions with
+  Denuvo/anti-tamper not observed.
+- Process hygiene: a stray background shell once drove copy A's menu into DLC3 and
+  autosaved; always stop leftover `sh.exe` input loops.
+
+### Next steps, in order
+
+1. Move the scratchpad helper scripts into `local/sow-coop/tools/` so the next session has them.
+2. Stand-in polish: measure its walk/run speeds, set `coop_run_speed` (and try the request's
+   speed factor) against foot sliding; check turning and stopping on captures.
+3. Offline test for the spawn path (fixtures with the game's byte shapes).
+4. Make it two-way: B sends its player to A, A shows a stand-in too (same code, mirrored config).
+5. Then world state: host authority for enemies and Nemesis events (hook
+   `HandleFactionEventAction`, never roll on the client), and a real network transport.
+6. Show the owner the hub diff and ask before pushing (PR #99 or a follow-up PR).
