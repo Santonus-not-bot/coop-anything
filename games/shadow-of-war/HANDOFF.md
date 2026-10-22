@@ -1,33 +1,44 @@
-# Shadow of War co-op: handoff (2026-10-21)
+# Shadow of War co-op: handoff (2026-10-22)
 
-Read this first, then the "Status summary 2026-10-21" at the end of [NOTES.md](NOTES.md).
+Read this first, then the "Status summary 2026-10-21" and session ag at the end of
+[NOTES.md](NOTES.md).
 
 **Where we are:** phase 5 (build), first co-op step working one way on one PC. Copy A
-streams its player over loopback UDP every frame. Copy B shows a spawned Talion stand-in
-that follows A (50 ms behind), with its AI off, walking with the player's own animations.
-Nothing goes from B to A yet; enemies, Nemesis, quests and time are not shared.
+streams its player over loopback UDP every frame: position, rotation, health and the 25
+inputs of the player's animation graph (stick, speed, turning, camera). Copy B shows a
+spawned Talion stand-in, AI off, moved by A's inputs through its own animation
+(`coop_puppet_move=anim`): it walks, turns and stops with A's stride, feet on the ground,
+and is put back only when it drifts past 150 units or once A stands still. Not carried yet:
+the A button's free-run/jumps, attacks, anything from B to A, and world state (enemies,
+Nemesis, quests, time).
 
 **Build and tools:** game build 3095001 only (Steam app 356190). Our guard DLL
-(`bink2w64.dll` proxy) and probe live in the private `local/sow-coop` repo (`fb752b4`).
-Offline tests 40/40, negative control 17/17; the spawn path is verified live only. The hub
-branch `game/shadow-of-war` (`fdb75fd`) is 15 commits ahead of PR #99, not pushed.
+(`bink2w64.dll` proxy) and probe live in the private `local/sow-coop` repo. Offline tests
+41/41, negative control 18/18. The hub branch `game/shadow-of-war` is ahead of PR #99 and
+not pushed.
 
 **Run it:**
 - `local/launch-sow.ps1 -Copy a -TimeoutSec 7200 -AllowOthers`, then the same with
-  `-Copy b`. Each copy loads unattended and reaches the world in about 48 s.
-- Probe: `python -I local/sow-coop/tools/probe.py local/test-installs/sow-b-profile puppet`
-  (or `remote`, `player`, `teleport x y z`, `pad ...`).
+  `-Copy b`. Each copy loads unattended and reaches the world in about 48 s; B spawns the
+  stand-in about 20 s later.
+- Probe: `python -I local/sow-coop/tools/probe.py local/test-installs/sow-b-profile remote`
+  (or `puppet`, `inputs`, `player`, `teleport x y z`, `pad ...`, `puppet follow anim|teleport|none`).
+- Watch it: `local/sow-coop/tools/view-standin.ps1 -Out <prefix> -Turn` once (B faces A's
+  start), then `view-steer.ps1 -Out <prefix> -Dx 1 -Dz 0`; measure with `root_match.py`
+  and `drift.py` (move B's own player off A's path first).
 
 **Rules that bit us:**
 - Never touch the owner's install or saves; work only in `local/test-installs/`.
 - Ask before pushing anything.
-- Stop stray background `sh.exe` input loops before restarting a copy: one steered copy A
-  into the DLC3 campaign.
+- Stop stray background `sh.exe` input loops before restarting a copy.
+- A test that runs sender and receiver in one process can hide receive-side bugs.
 
 **Next steps:**
-1. Move the helper scripts left in the agent's temporary scratchpad into
-   `local/sow-coop/tools/`.
-2. Tune the stand-in's walk/run (foot sliding) and check turning and stopping.
-3. Add an offline test for the spawn path.
-4. Make it two-way (B to A).
-5. Then share world state (host authority, Nemesis events) and add a real network transport.
+1. Carry free-run/jumps: find how the A button reaches the player's graph (an event or
+   state request, not one of the 25 floats or the three per-frame bools).
+2. Steadier drift correction through `DeltaYaw` (it turns the stand-in), tested on a
+   repeatable path.
+3. Make it two-way (B to A).
+4. Then world state: host authority for enemies and Nemesis events, and a real network
+   transport.
+5. Show the owner the hub diff and ask before pushing.

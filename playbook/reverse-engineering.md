@@ -106,6 +106,19 @@ you a log, a script channel and native commands in one step. Worked out on Far C
   animation/behavior graph: in Shadow of War the cutscene `Talion` stood in a T-pose until
   it got the player's behavior resource, then switched on and walked with the player's
   animations. Putting the player's look on an AI body failed while the skeletons differed.
+- **Drive the stand-in's graph with the sender's graph inputs, not AI moves.** A player's
+  animation graph is fed every frame by named variables its update sets (stick magnitude
+  and angle, speed, turn delta, camera; in Shadow of War 37 floats through one setter).
+  Hook that setter on the sender (an entry hook whose handler gets the setter's own
+  arguments), send the values, and set them on the stand-in every frame. Then let its own
+  root motion move it and correct drift only rarely: teleporting it every frame held it in a
+  stretched pose, teleporting every few frames made it slide with its legs together, while
+  left to the inputs it walked with the sender's stride and covered the sender's path to
+  within a few percent, turns and stops included. Measure that unpinned path against the
+  sender's: if they match, the stride fits and the feet will not slide. Check that the
+  receive-only side really applies the values: in Shadow of War a receiver that recorded
+  nothing itself silently skipped them, and a test running sender and receiver in one
+  process hid it.
 
 ## What to map for co-op
 

@@ -478,6 +478,8 @@ local player's position and world id. Difficulty: easy on Unity/mod-loader games
    walk animation plays, or spawn a cutscene copy of the player character and give it the
    player's own animation graph (Shadow of War; see
    [reverse-engineering.md](reverse-engineering.md#reading-and-driving-live-state-from-inside-the-game)).
+   With the player's graph, send the graph's own inputs (stick, speed, turn) and let them
+   move the puppet; pinning it to the received position every frame breaks its stride.
 3. Handle disconnect (despawn) and cell/level mismatch (hide puppets in other
    levels).
 

@@ -2039,3 +2039,95 @@ A condensed view of sessions a to af above; the sessions keep the evidence and s
 5. Then world state: host authority for enemies and Nemesis events (hook
    `HandleFactionEventAction`, never roll on the client), and a real network transport.
 6. Show the owner the hub diff and ask before pushing (PR #99 or a follow-up PR).
+
+## Session 2026-10-22 ag: the stand-in walks with the sender's own stride (animation inputs, anim mode)
+
+### Observations (live, copies A and B; the stand-in is the spawned `Talion` with the player's graph)
+
+- Its own move requests (follow `none`, nothing pinning it): walk and run both give
+  ~230 units/s, whatever the request's speed factor (0.5-2), the motion state's speed cap
+  (`[character+0x2CE8]+0x3B0`, read by the mode-1 update `374CA0`, which sends the gait as
+  0.5 walk / 1.0 run) or `Game_AnimRate` (set every frame from our hook). A request aimed
+  into scenery leaves it stuck in mode 1 until it is teleported back onto open floor (that
+  was session ad's "standalone requests stop working").
+- `PrintWindow` captures with B's camera turned toward A: pinned (teleported every frame)
+  the stand-in never strides. It holds a stretched pose (torso upright, legs out behind) or,
+  with teleports every few frames, slides with its legs together. The "full stride" of
+  session af was most likely that pose seen from behind.
+- The player's graph is fed by the player's per-frame update (`30BA10`, the player's vtable
+  slot 36 that our hook already precedes, and `514484`), through the float setter `176D78`
+  on `player+0x120`: `RawMoveMag`, `RawMoveYaw`, `Game_MovementAxisX/Y`, `PlayerVelocity`,
+  `PlayerSmoothVelocity`, `DeltaYaw`, `YawVelocityInDegsPerSec`, camera and pitch values,
+  `Player_Focus`, `Game_SimTimer_TimeScale`, hand and foot positions (37 floats, found with
+  `stacks` on `176D78`), plus three bools per frame (`ToggleStealthOn`, `KBMinputActive`,
+  `CanHide`, through `375044` -> `375110`). An AI character gets none of these.
+- `176D78` posts each value to the graph as a message (`176E40` -> `114B75C`; the queue at
+  `[anim+0x1860]` is shared by all characters, the graph is `[anim+0x480]`), so values are
+  caught as they are set, not read back.
+- Moved only by the inputs (follow `none` or `anim`, no teleports), the stand-in walks with
+  a natural stride: alternating legs, heel strikes, feet on their shadows, cloak swinging
+  (strips of 9 captures 50 ms apart, side view). Its path matches A's (`root_match.py`, the
+  stand-in pinned to A, then left to the inputs while A walks): straight 0.90-0.96 of A's
+  length, ends 18-20 apart; a turn (two stick directions) 1.00-1.01, ends 2-4 apart; walk,
+  stop, walk back 0.98, ends 0.8 apart; half stick 0.97, ends 7.5 apart.
+- `anim` mode over steered walks (`drift.py`, gap to where A was 50 ms earlier): a 4.4 s
+  square, mean 4-5 units, max 7-12, no put-back; three squares (13 s, 12 sharp turns),
+  mean 15-35, max 50-120 between runs, a put-back when past 150, settled within half a
+  second of A stopping. B's own player standing on A's path made it much worse (mean 68):
+  B's world has obstacles that A's does not.
+- Steering the drift away through the inputs: turning the camera inputs
+  (`CameraYawMinusPlayerYaw`, `CharToCamDeltaYawInDegs`) or the stick (`RawMoveYaw`,
+  `Game_MovementAxisX/Y`) by 30 degrees did not change its direction (within 6 degrees);
+  `DeltaYaw` + 30 degrees made it walk in an arc (net 128 of 236 units): `DeltaYaw` turns it.
+  Pursuit steering through `DeltaYaw` (with or without the facing difference, gains 0.3-1,
+  either sign) made the drift worse than none in every run; removed again.
+- Not carried: holding A's jump/parkour button (free-run, 305-419 units/s): the stand-in
+  covered 128 of 275-377 units. A's floats then differ only in `PlayerVelocity` (543); A's
+  graph enters `RunningJump_AutoPicker_*` states (names seen in `114B7D0`, which copies a
+  state or clip name inside the graph runtime, `195988`). No bool for it either.
+- Spawning failed ("the game created nothing") while A's position was where B's own player
+  stood; it worked 150 units beside it.
+
+### Change (sow-coop, local, commits 2997939, c451f2d and the next)
+
+- `simhook`: an entry hook on `176D78` (bytes checked; a jmp written with one aligned 8-byte
+  write; the stub calls the handler with the setter's own `rcx`, `rdx`, `xmm2`) records this
+  copy's player's 25 named inputs (and lists other float names for probe `inputs`).
+  `SimApplyPuppetInputs` sets them on the puppet through `176D78` (byte-checked on first use
+  when the copy records nothing itself).
+- `coop`: packets (version 3, 164 bytes) carry the inputs and a mask; the receiver sets the
+  inputs of the sample it shows (50 ms behind) every frame. `coop_puppet_move=anim`: moved by
+  the inputs alone, put back with a teleport past `coop_anim_snap` (150) or 150 up/down, and
+  once A has stood still for half a second and it is more than 15 units or 15 degrees off.
+  Test copy B runs `anim`. A failed stand-in spawn is retried 150 units around the sender.
+  `Head()` byte checks refuse addresses outside the image.
+- Probe: `puppet follow anim`, `puppet inputs on|off`, `puppet snap <units>`,
+  `puppet mirror on|off` (this copy's own inputs on the puppet), `inputs`.
+- Tools: `steer.py` (a copy's player along a world direction: stick angle = wanted heading -
+  camera yaw, camera yaw = player yaw - `CameraYawMinusPlayerYaw`), `root_match.py`,
+  `drift.py`, `view-steer.ps1`, `view-standin.ps1`, `strip.ps1`, `gait_speed.py`,
+  `anim_inputs.py`, `anim_bools.py`, `dumpf.py`, and the scratchpad helpers (`shot.ps1`,
+  `wait-world.ps1`, `walk-loop.sh`, `records.py`, `dis_annot.py`, ...).
+- Removed: setting `Game_AnimRate` from the sender's speed, and the `DeltaYaw` steering.
+- A receiver that records nothing itself first skipped the inputs silently (the setter
+  pointer was only set by the recorder) while counting them as given; captures made then
+  showed teleport pinning without inputs. Fixed; the new offline case `coop_puppet_recv`
+  (a receiver alone, packets from the test) failed on the old DLL and passes on the fix.
+- Offline: 41 of 41 (`coop_puppet_walk`: a fake player's inputs reach the puppet, a fourth
+  variable does not; `coop_puppet_recv`: the receiver alone applies them, `anim` leaves the
+  puppet alone while it is where the sender is and puts it back once the sender is 500 units
+  away); negative control 18 of 18.
+
+### Derived
+
+- For a stand-in with the player's graph, replicate the graph's inputs and let its own
+  root motion move it; do not pin it every frame. Teleports interrupt the stride, so
+  corrections must stay rare.
+- `DeltaYaw` is the turning lever, so a better drift correction is possible, but it needs a
+  repeatable test path first (the steered legs and B's obstacles made runs vary by 2x).
+
+### Unknown
+
+- How the A button's free-run and jumps reach the player's graph.
+- Attacks, hits and other actions: not carried.
+- Drift on long walks with obstacles only on B's side (the stand-in is blocked, A is not).
