@@ -473,7 +473,10 @@ local player's position and world id. Difficulty: easy on Unity/mod-loader games
 1. Write a minimal transport: host plus one client, a message for "player state"
    (id, world id, position, rotation, animation, equipment), 10 to 20 Hz.
 2. Spawn a puppet from the game's own NPC or player model. Disable its AI and input.
-   Drive it from received state with interpolation.
+   Drive it from received state with interpolation. Without a spawn API, an existing NPC
+   can be taken over: skip its decision call and feed the game's own move request so its
+   walk animation plays (Shadow of War; see
+   [reverse-engineering.md](reverse-engineering.md#reading-and-driving-live-state-from-inside-the-game)).
 3. Handle disconnect (despawn) and cell/level mismatch (hide puppets in other
    levels).
 

@@ -1726,3 +1726,97 @@ the code that installs them, call chains back to the program entry. Exe file onl
 
 - How it looks on screen (not watched yet).
 - Real network delay and jitter: only loopback so far; 50 ms was chosen for loopback.
+
+## Session 2026-10-21 ad: the puppet's own AI off, its walk animation driven from copy A
+
+### Observations (static, build 3095001)
+
+- AI characters (class vtable `1FB3640`): slot 36 (`175724`) is their per-frame update
+  (`count`: 1,112 calls/s, 19 characters at 58.5 frames/s). It fills a per-frame context
+  and sets **named animation variables** on `character+0x120` through setters: float
+  `176D78`, bool `375044` (others `4192B4`, `1BCF0D4`). Names are hashed case-blind
+  (`h = h*0x397 + table[c]`, table at `1DB50D0`). About 80 names are set by name in code,
+  among them `RawMoveMag`, `RawMoveYaw`, `Game_MovementAxisX/Y`, `AIDesiredWorldYaw`, `HasDest`,
+  `DestX`, `DestZ`, `WalkAndTalkScale`.
+- **Movement controller** `[character+0x2C78]` (its `+0` is the character): desired mode
+  `+0x68`, current mode `+0x6C` (1 go to the request, 2 idle, 3 driven by mount input,
+  `UsingMountedInput`), request at `+0x70` (0x25 bytes: has-destination byte,
+  destination x/y/z, direction x/z, move type (1 walk, speed factor 0.5; 2 run, 1.0),
+  distance, speed factor, a "direct" byte at `+0x24`). `SetMoveRequest` is `3F4BD8`; the
+  game's go-to-point behaviors fill the request as above with the direct byte 0, which
+  also asks the character's navigator (`[character+0x2528]`, vfunc `+0x140`) for a path.
+  `2F4274` updates every listed controller each frame (`2F42C0`); mode 1 (`374CA0`)
+  pushes `HasDest`/`DestX`/`DestZ` to the animation variables.
+- **AI decision path** (found live with the new `stacks` probe command, below): the
+  simulation thread calls the AI class's slot 18 (`2F94F0`) -> `2F9478` -> slot 119
+  (`+0x3B8`, `2F79A4`, the AI tick) -> at `2F7B40` `mov rcx,[r8]; xor edx,edx; call
+  1919C8` runs the character's behavior tree (`[character+0x2D38]`, whose `+8` is the
+  character) -> ... -> `3F4A3C` (a chase behavior) -> `SetMoveRequest`: 59 calls in 5 s,
+  all through this one chain. The code after the tree call (`2F5EB4`) reads only
+  `rdx`, so leaving the call out is safe.
+
+### Change (sow-coop, local)
+
+- `coop_puppet_ai=off`: the call at `2F7B45` is pointed (bytes checked, patched from the
+  simulation thread) at a jump to a filter that skips the tree whose `+8` is the puppet.
+  Every other character's tree runs as before.
+- `coop_puppet_move=both`: the puppet is still teleported to A every frame, and its
+  controller gets the game's own move request (destination half a second ahead along A's
+  motion, walk or run by A's speed, `coop_run_speed` 300; idle when A stands still).
+  `coop_puppet_move=walk` moves it only with the requests (teleport when more than
+  `coop_teleport_dist`, 600, behind).
+- Probe: `stacks <addr> <entry bytes> <ms> [first-argument qword]` records call stacks
+  into a function for a few seconds (a jmp at its entry, a register-preserving stub with
+  unwind info, the replaced bytes relocated; restored after). `teleport x y z` moves this
+  copy's player. `puppet ai on|off`, `puppet walk x y z type [factor]`, `puppet idle`,
+  `puppet follow walk|teleport|both|none`; `puppet` and `remote` show requests, idles,
+  tree skips and the controller mode.
+- Four code pages within rel32 reach of the image are reserved at start-up: by the time
+  the world runs, the game's heap fills the 2 GB on either side of the image (`stacks` failed with
+  "no free page" on its second use).
+- Offline: 40 of 40 (`probe_stacks`: filter by first argument, stacks through the stub,
+  entry restored; `coop_puppet_walk`: the puppet's tree never runs while its AI is off,
+  another character's does, it runs again after `puppet ai on`, walk then run requests aim
+  ahead, idle at the end, pinned to the sender, `teleport` keeps the rotation). Negative
+  control 17 of 17 (with the hooks compiled out, the puppet's tree ran 159 times).
+
+### Observations (live, copies A and B)
+
+- AI off: B's puppet stood in an idle pose next to B's player and did not attack
+  (screenshot); `tree_skips` rose about once per frame.
+- `both`, A walking with the virtual stick (215-219 units/s): the orc stayed 0-14 units
+  behind, its controller in mode 1 with walk requests (~12/s), and went back to mode 2
+  when A stopped (0 units behind). A sprint that turned into a jump off the platform
+  (~550 units/s, then a ~5,700-unit drop): 25-40 units behind, followed all the way down.
+- Seen on screen (`PrintWindow` of B's window, 150 ms apart, while A walked): the orc's
+  legs alternate through a stride, arms swing, dust at its feet; it stands idle when A
+  stops.
+- `walk` alone: the orc walks at ~115-130 units/s (type 1) and runs at ~480 (type 2); one
+  run request ended within 3 units of the target. Following A it started ~1.5 s late,
+  took its own navmesh route 150-180 units off A's line and stayed 180-300 behind. Later
+  in the same sessions, standalone requests stopped moving it at all (mode 1, position
+  unchanged to 0.1 units).
+- Incidents: `TaskStop` on the background walk loop killed only the bash wrapper; its
+  `sh.exe` kept sending stick input through the probe to the *restarted* copy A, moved the
+  title menu and loaded the DLC3 campaign (`GameModeSet - DLC3`, another hero, 430
+  health), which autosaved into A's sandbox. Stopping that `sh.exe` and restarting A
+  loaded the main campaign again at the usual spot. Both copies later closed with exit
+  code 0 within seconds of each other (17:11), no application error logged; cause
+  unknown.
+
+### Derived
+
+- The game already separates deciding (behavior tree) from moving (controller and
+  navigator) and animating (named variables, then root motion). Skipping one call stops
+  the decisions for one character only; the move request makes its own locomotion
+  animate.
+- Pinning plus requests ("both") gives A's exact position with the orc's own gait; on its
+  own the navigator cannot follow a player who walks where orcs do not path.
+
+### Unknown
+
+- Foot sliding: A walks at ~218 units/s, the orc's walk animation covers ~120 and its run
+  ~480; whether the request's speed factor changes the gait's speed is untested (the
+  test orc no longer answered standalone requests).
+- Why standalone requests stop moving the orc after a while.
+- What the orc does with its tree skipped when B's player attacks it, or when it is hit.

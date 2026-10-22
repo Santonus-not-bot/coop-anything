@@ -76,6 +76,24 @@ you a log, a script channel and native commands in one step. Worked out on Far C
   loop hook), not once; smooth towards the target; keep the puppet invincible; and read
   memory with `ReadProcessMemory` in chunks so a scan cannot crash the game. See
   [lessons.md](lessons.md) items 26 to 28.
+- **Find out who calls a function, live.** Static callers stop at virtual calls. Record
+  the stacks instead: for a few seconds put a 5-byte `jmp` at the function's entry (one
+  aligned 8-byte write), run a stub that saves the volatile registers and flags, records
+  the stack, runs the replaced entry instructions (whole ones, not RIP-relative) and jumps
+  back, then restore the bytes. Give the stub unwind info (`RtlAddFunctionTable`) and walk
+  the stack yourself with `RtlLookupFunctionEntry` and `RtlVirtualUnwind`:
+  `RtlCaptureStackBackTrace` stopped at such a stub in Shadow of War. Filter by the first
+  argument to see one object's callers. Reserve the stub pages within rel32 reach of the
+  image at start-up: minutes into the world the game's heap filled the 2 GB on either side
+  of the image and no page could be found. Shadow of War's AI decision path came out of
+  one 5-second run (`stacks` in [games/shadow-of-war](../games/shadow-of-war/NOTES.md), session ad).
+- **Stop one character's AI and keep its body.** Look for the one call where the AI tick
+  runs the character's decision tree, and filter that call for the puppet only; the rest
+  of the tick keeps running (in Shadow of War the puppet still animated and moved), and so
+  do other characters. Then move the puppet with the game's own AI move request (destination plus
+  gait), which plays its own walk and run animations. In Shadow of War that request alone
+  followed the player badly (its own navmesh route, 1.5 s late), so the puppet is pinned
+  to the player's position every frame while the requests make it walk or run.
 
 ## What to map for co-op
 
