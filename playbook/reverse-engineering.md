@@ -131,6 +131,17 @@ you a log, a script channel and native commands in one step. Worked out on Far C
   ([NOTES](../games/shadow-of-war/NOTES.md), session ah). This fixes position only: the
   stand-in kept playing its walk (the owner saw it live; `PrintWindow` stills from afar had
   suggested a run), so check the animation by watching, not from distant stills.
+- **Carry the buttons too, the way the graph reads them.** A player's graph may take its
+  buttons from per-character input data rather than from named variables: in Shadow of War
+  the player's update fills lists of 377 game actions on the character every frame, and the
+  graph's input nodes read them only while two player flags on the character are set. An AI
+  character has empty lists and the flags off, so the stand-in never saw the A button and
+  never left its walk; with the sender's lists (kept full) and the two flags it entered the
+  free-run 80 ms after the sender, and the speed workaround above was no longer needed
+  (session aj). To find such a path: read the graph's state names live (Shadow of War keeps
+  the last started one in each graph instance), see which input entries change on a button
+  press, watch who reads them, and log crashes with their call stack (setting the flags with
+  empty lists tripped a bounds check that pointed straight at the input node).
 
 ## What to map for co-op
 

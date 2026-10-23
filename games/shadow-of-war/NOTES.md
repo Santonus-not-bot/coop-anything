@@ -2324,4 +2324,88 @@ smoothing lagged the free-run start.
   `AIDestinationDist`, ... by id through `191FFC`, written straight into the graph's variable
   table, not through `176D78`); state the player's graph reads outside the 25 inputs.
 - Unknown: whether "runs" here was A at full stick, A free-running, or both (the owner's
-  words: "when player a runs").
+  words: "when player a runs"). (Session aj: A's full-stick locomotion is itself the walk,
+  `Idle_To_Walk_Forward`; its run is the A-button `Sprint`.)
+
+## Session 2026-10-22 aj: the stand-in free-runs (the sender's buttons)
+
+### Observations (live, copies A and B)
+
+- Each animation graph instance (the anim manager `[[26FFAA8]+0x6CB0]`, count `+0x6720`,
+  pointers `+0x6728`; instances 0xE2D0 bytes) keeps the name of the action it last started at
+  `+0x48` (`195988` copies it), and its owner at `+0x28` (whose `+0x40` is the character).
+  Sampled every ~40 ms (`tools/graph_actions.py`) this shows the graph's state machine:
+  - A at full stick: `L_Stick_JustEngaged_Fwd` -> `Idle_To_Walk_Forward` (a walk; A's
+    full-stick speed ~215).
+  - A with the A button: `A_Button_JustPressed` -> `A_Button_WaitingForUnpress` -> `Sprint`
+    (600-750), and at ledges `RunningJump_Autopicker_*`, `WallStop_To_Idle`, `Edge_Pause`.
+  - The stand-in, with the sender's 25 inputs: the same stick states, never the A button
+    (stays in `Idle_To_Walk_Forward`).
+- `195988` is never called on the simulation thread: the graphs run on other threads.
+- The player's update fills three lists of 377 game actions on its character every frame
+  (`30C276`): `+0x5F8`, `+0x778`, `+0x8F8`, each a count then a byte (held), a byte (pressed)
+  or a float (value) per action. Read every ~0.3 ms around the press (`tools/action_edges.py`):
+  the A button sets `held[12]`, `held[110]` and their values to 1.0; the stick is in 3, 6,
+  121, 122; the pressed list stayed 0.
+- `1B1840`, called for every animated character right after its per-frame animation update,
+  copies the block from `character+0x5D0` (the three lists among it) into the character's
+  animation job (a read watch, `wtrace ... rw`, on `held[110]`). For the stand-in it copies its
+  lists too, but only `count` entries (none while its count is 0).
+- Holding actions 12 and 110 (and the stick ones) on the stand-in (`puppet hold`) changed
+  nothing. Comparing the copied flags `character+0x1128..0x113B`: four bytes are 1 on both
+  players and 0 on the stand-in (`0x1129`, `0x112B`, `0x1130`, `0x113A`; the player's update
+  writes them, `0x1129` and `0x113A` to 1 unconditionally).
+- With all four set, copy B crashed (`0xC0000005`). A new crash log (access violations in game
+  code with their call stack) caught it: `FA9C24`, a deliberate write to address 0 (the
+  bounds check of a list lookup, `FA9C20`), from `644AD8`, a graph input node: it reads a
+  button from the job's copy of the lists (`job+0x108` held, `job+0x408` values; the job's
+  input starts at `+0xE0`) when the copy of `0x113A` is set and the graph counts as
+  player-driven, and the stand-in's lists were empty at that moment.
+- Lists kept full and the flags set: the stand-in's graph went `A_Button_JustPressed` ->
+  `A_Button_WaitingForUnpress` -> `Sprint` one sample after A's, and back to idle on release.
+  The minimal flags are `0x113A` and `0x1129` (`0x113A` with `0x112B` or `0x1130` instead: no
+  reaction; `0x1130`, `0x112B`, `0x1129` without `0x113A`: no reaction).
+
+### Change (sow-coop, local, commit 5203d36)
+
+- Packets version 5 (556 bytes): the sender's non-zero game actions (up to 48: index, held,
+  pressed, value).
+- The receiver gives the stand-in full lists (count 377) with them every frame and sets
+  `character+0x113A` and `+0x1129`; switched off (`coop_puppet_actions=off`, probe
+  `puppet actions on|off`) or without inputs, flags and lists go back together.
+- The root-motion speed match (session ah) now only runs without the buttons.
+- Probe: `puppet hold` (experiment), `wtrace ... rw`, a crash log; tools `graphs.py`,
+  `graph_actions.py`, `action_edges.py`, `flag_try.py`, `input_flags_try.py`, `disp_refs.py`.
+- Offline 42 of 42 (`coop_puppet_recv`: full lists with the sender's buttons and both flags;
+  new `coop_puppet_recv_nobuttons`: lists and flags stay an AI's, the speed match scales);
+  negative control 19 of 19.
+
+### Measured (live, final build)
+
+- The stand-in's graph: `Walking` -> `A_Button_JustPressed` -> `Sprint` ->
+  `Idle_to_Sprint_Forward`, about 80 ms after A's (the 50 ms display delay and a frame).
+- Its own root motion now rises with A's through the free-run (424, 481, ... 606 units/s one
+  sample after A's), where it capped at ~230 before.
+- 3 runs each: straight run into a free-run, path 0.99-1.00 of A's and 2-3 units apart at the
+  end (session ah: 0.87-1.00 and 72-87 with the speed match, 0.47 without); steered free-run,
+  mean gap 5-7, max 16-24, no put-backs (session ah: 10-12, max 34-43); free-run with a turn,
+  4.9-8.4, max 12-24, no put-backs (session ah: ~10, max ~41); walking squares 10-11 as before.
+- With the buttons and the speed match both on, turns were worse (mean 7.7-10.3 against
+  3.7-7.1 with the match off), hence the match only without the buttons.
+- One walking square (of ~35 on these builds) again ended 134 units off without a put-back;
+  not reproduced in 15 runs with `settle_hunt.py`.
+
+### Derived
+
+- The player's graph takes its buttons from the per-character action lists, not from
+  variables; an AI character with the player's graph needs the lists and two player flags.
+  The stick also works through the float inputs, which is why the stand-in walked and turned
+  but never free-ran.
+
+### Unknown
+
+- Whether the stand-in's free-run looks right (not watched yet; the graph state says
+  `Sprint`).
+- Vaults and running jumps with the buttons: the stand-in's graph entered
+  `RunningJump_Autopicker_Hold` once with A; whether it jumps where A jumps is not checked.
+- What else `0x1129` switches on for an AI character (no side effect seen in ~15 minutes).
