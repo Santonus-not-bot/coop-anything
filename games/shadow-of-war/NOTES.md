@@ -2248,4 +2248,57 @@ smoothing lagged the free-run start.
 - Whether the stand-in's feet skate at the scaled speed.
 - Seen 4 times in ~35 walking squares, once with the scaling not engaged at all: the
   stand-in ends 45-117 units from A and is not put back within 1.5 s of A stopping (the
-  settle rule should do it after half a second). Not investigated.
+  settle rule should do it after half a second). Not investigated. (Explained and fixed in
+  session ai.)
+
+## Session 2026-10-22 ai: the missing put-back after a stop
+
+### Observations (live, copies A and B)
+
+- New readout in probe `remote`: what anim mode's per-frame check last saw (frames it ran,
+  frames it could not read the stand-in, refused put-backs, frames without an interpolated
+  sender, the gap, the turn, the sender's speed and how long it has counted as standing).
+- Reproduced on the first walking square (`tools/settle_hunt.py`): 143 units off after the
+  stop, no put-back. The check ran every frame and nothing was refused; the sender's speed
+  read 8-15 units/s and the standing time kept going back to 0-62 ms. A's stick read
+  `RawMoveMag=0` the whole time while A crept on (a few units over half a second). Once A was
+  fully still the put-back came half a second later, about 2.3 s after the stop. A second
+  catch (run 8 of 8): 130 off, A creeping at 11-17 units/s with the stick at 0.
+- Why the stand-in was that far off in the first place, in the second catch: it had stopped
+  against B's own player, which the stand-in had bumped from where it was parked onto the
+  walking square (B's player found ~40 units from where the stand-in stood), while A walked on
+  ~100 units in its own world.
+
+### Derived
+
+- The settle rule counted the sender as moving above 10 units/s; a player creeps at 10-20
+  units/s with its stick let go for a second or more after stopping, so the half second kept
+  restarting.
+
+### Change (sow-coop, local, commit 2e83066)
+
+- Standing is now under 10 units/s, or under 40 with the stick let go (`RawMoveMag` under
+  0.05). Probe `remote` shows the check's state (above).
+- Test `coop_puppet_recv`: after the earlier phases the sender lets go of the stick, moves 60
+  units and creeps at 20 units/s for 1.5 s; the stand-in must be put back meanwhile. The fake
+  teleport now moves the fake stand-in, as the game's does; before, every frame after the
+  test's 500-unit jump was a put-back, which hid the settle rule. The previous DLL fails the
+  new check (twice), this one passes (twice). Offline 41 of 41, negative control 18 of 18.
+- `drift.py` and `run_compare.py` park B's own player off the paths before every run.
+
+### Measured (live)
+
+- 15 walking squares: each ended either put back 1.1-1.2 s after the stop (A's glide after
+  the stick is let go, then the 0.2 s speed window and the half second) or within 15 units of
+  A (9-15 apart: inside the rule's margin). Before: 4 of ~35 still 45-117 off 1.5 s after the
+  stop.
+- Free-run paths afterwards: 6 of 7 straight runs normal (mean gap 10-14, max 34-46); one
+  had mean 40, max 160 and 2 extra put-backs, not reproduced in 5 more runs. Free-run with a
+  turn: 8-10 mean, max 35-41.
+
+### Unknown
+
+- The one straight free-run outlier above.
+- Why A sometimes glides ~100 units after the stick is let go while the stand-in stops at
+  once (in the catch above the stand-in was blocked by B's player; whether that is the only
+  cause is not known).
