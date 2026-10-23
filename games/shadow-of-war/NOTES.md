@@ -2155,3 +2155,97 @@ A condensed view of sessions a to af above; the sessions keep the evidence and s
 - The free-run gap is speed, not pose: A's free-run speed comes from somewhere other than
   the run animation's root motion (likely the player's movement code), so the stand-in's
   stride matches but its speed does not. The 150-unit put-back hides it for now.
+  (Corrected in session ah: the speed is root motion for both; the stand-in's graph
+  produces a run's.)
+
+## Session 2026-10-22 ah: free-run speed
+
+Same build (3095001), copies A and B on one PC as in session ag.
+
+### Observations (live)
+
+- The A button's free-run from the test start: A's horizontal speed ~170 (walking) rises
+  to 600-750 units/s within ~0.7 s; running with the stick alone is ~215. In most
+  directions from the start A reaches a ledge within ~800 units and takes a running jump
+  (height +53, then falling), and pressing A from standing starts with a jump; the flat
+  test path is toward (0.71, -0.71) after 0.7 s of walking. Some earlier free-run numbers
+  (session ag: 305-419 units/s) included jumps and blocked legs.
+- Who writes A's position (new probe `wtrace`, a write breakpoint in debug register 2 on the
+  simulation thread): one site, ~60 times a second, walking or free-running: `145570` (in
+  `14554C`, the transform setter), from the movement component's update `301484` (slot
+  `0x100`, `2FFC1C`). The player's movement component is `[player+0x2F88]` (also `+0x24A0`;
+  vtable `22F7738`), the stand-in's `[character+0x2CD8]` (also `+0x24A0`; vtable `1DB73B0`).
+  Both run the same character-controller function `41C5C8`.
+- The per-frame move comes from root motion for both: the animation's motion delta is copied
+  each frame from the animation job's output to `[character+0x11D8]` (local space; `2FE700`
+  -> `250788`), and the movement component's step (slot `0x80`: the player's `4E572C` reads
+  `[character+0x11D8]`; an AI character's `191868` -> `119BAC` reads the AI movement
+  controller's copy at `[[character+0x2C78]+0x9C]`, made by `2FDF68`, scaled by
+  `[character+0xC8]`). During A's free-run `[player+0x11D8]` over the frame time is 600-740
+  units/s; the stand-in's, given the same inputs, levels off at ~225-230. (The flag at
+  `[player+0x2D19]`, which would add extra motion, stays 0.)
+- What the stand-in's graph gets (probe `trace 176D78 ... names`, keyed by variable name):
+  our 25 inputs plus `MountWarg_Yaw` and `EnemyDist` (-1) from its own code; no
+  `MovementSpeedScaler` or other AI variables per frame. A's graph during the free-run start
+  gets no extra message (`176EFC` traced across the button press) and no extra bool (only
+  the rare `TargetValid_ActivateRB`, on release too). The message `41C028` that only the
+  player's movement code sends carries a direction and two fields that stay 0.
+- The player's update `30BA10` also fills, for 377 game actions, a byte at `+0x5F8`, a byte
+  at `+0x778` and a float at `+0x8F8` of the character (`30C276` loop); free-run sets a few
+  more of them. The stand-in's stay 0, and nothing resets them: copying A's free-run values
+  into the stand-in once changed nothing (still ~230). A player-only dword at `+0x21C4` goes
+  1 -> 2 when the free-run starts (written by `43FC62`/`44115D`, list bookkeeping there; the
+  AI character has other data at that offset).
+- `PrintWindow` captures of B while A free-runs: the stand-in runs with a full stride and
+  cloak flying; whether its feet skate at the scaled speed was not judged from the stills.
+
+### Change (sow-coop, local, commit cc6b68f)
+
+- Packets version 4 (168 bytes) add the sender's root-motion speed (`[player+0x11D8]` over
+  `[player+0x1118]`).
+- Anim mode, on unless `coop_anim_speed=off` (probe `puppet speed on|off`): the stand-in's
+  movement component gets a copy of its vtable (one object; the class's table is untouched)
+  with slot `0x80` (`191868`, bytes checked) wrapped. Before the step, while the sender is
+  over 300 units/s and 1.2 times the stand-in (and half a second after), the stand-in's
+  motion `[[character+0x2C78]+0x9C]` is scaled by the sender's speed (smoothed 0.1 s rising,
+  0.04 s falling) plus a catch-up (twice the gap along its own heading per second, at most
+  300) over its own (smoothed 0.25 s), between 0.5 and 4 times.
+- Probe `wtrace <addr> <ms> [len]` and `trace ... names`; tools `run_compare.py`,
+  `drift.py -v`, `puppet_motion.py`, `run_survey.py`, `pos_writers.py`, `find_vslot.py`,
+  `field_diff.py`, `int_diff.py`, `puppet_vars.py`, `action_copy.py`, `view-sprint.ps1`.
+- Offline 41 of 41 (`coop_puppet_recv`: a 200 units/s stand-in scaled to the sender's 600;
+  `coop_puppet_walk`: left alone outside anim mode); negative control 18 of 18 (the build
+  without the vtable swap fails the new check).
+
+### Measured (live, final build, 3 runs each, speed matching on against off)
+
+| Path | On | Off |
+|---|---|---|
+| Straight: 0.8 s run, 0.85 s free-run, fixed stick (`run_compare.py`) | path 0.87-1.00 of A's, 72-87 apart 0.4 s after | 0.47-0.48, 302-313 apart |
+| Steered: 0.7 s run, 0.9 s free-run (`drift.py`) | gap mean 10-12, max 34-43, no put-back besides the start's | 30-31, max 138-143, 2 more put-backs |
+| Free-run with a 90-degree turn | mean ~10, max ~41, none besides the start's | 35-36, max 147-149, 2 more |
+| Walking square, 4.4 s | mean 11-16 (scaling never engaged) | 10-53 |
+
+Earlier versions measured on the way: scaling at all speeds made the walking square worse
+(mean 9-31 against 7-11) because it engaged at every start and corner; a catch-up inside the
+smoothing lagged the free-run start.
+
+### Derived
+
+- Correction to session ag: the free-run speed is root motion for both characters; the
+  stand-in's graph produces a run's, not the free-run's. Whatever puts the player's graph into
+  the free-run is not a per-frame variable, bool or message from the simulation thread, nor
+  the action arrays alone.
+- Matching the stand-in's root-motion speed, only above what its own run can do, fixes the
+  free-run gap without touching walks.
+
+### Unknown / not done
+
+- What makes the player's graph free-run (some state outside the inputs, perhaps set on
+  another thread).
+- Vaults and running jumps during a free-run are not carried (the stand-in falls off ledges
+  A jumps from, and is put back).
+- Whether the stand-in's feet skate at the scaled speed.
+- Seen 4 times in ~35 walking squares, once with the scaling not engaged at all: the
+  stand-in ends 45-117 units from A and is not put back within 1.5 s of A stopping (the
+  settle rule should do it after half a second). Not investigated.
