@@ -2137,7 +2137,8 @@ A condensed view of sessions a to af above; the sessions keep the evidence and s
 #### Observations (live)
 
 - Free-run (A button held), captured from B: the stand-in runs with a long, fast stride,
-  so the inputs do carry the run animation. It still falls behind: over 0.7 s legs the gap
+  so the inputs do carry the run animation. (Wrong, see "Owner's observation" after session
+  ai: watched live, it plays the walk.) It still falls behind: over 0.7 s legs the gap
   reached 130-150 units (mean 32-65) and it was put back 1-3 times.
 - A call trace (new probe `trace`: an execute breakpoint on `176EFC`, which every message
   to a graph calls with the graph in `rcx`) on A's player's graph, 600 ms walking against
@@ -2198,6 +2199,7 @@ Same build (3095001), copies A and B on one PC as in session ag.
   AI character has other data at that offset).
 - `PrintWindow` captures of B while A free-runs: the stand-in runs with a full stride and
   cloak flying; whether its feet skate at the scaled speed was not judged from the stills.
+  (Wrong, see "Owner's observation" after session ai: it plays the walk.)
 
 ### Change (sow-coop, local, commit cc6b68f)
 
@@ -2233,7 +2235,8 @@ smoothing lagged the free-run start.
 ### Derived
 
 - Correction to session ag: the free-run speed is root motion for both characters; the
-  stand-in's graph produces a run's, not the free-run's. Whatever puts the player's graph into
+  stand-in's graph produces a run's, not the free-run's (its speed, ~230; the animation it
+  plays is the walk, see "Owner's observation" after session ai). Whatever puts the player's graph into
   the free-run is not a per-frame variable, bool or message from the simulation thread, nor
   the action arrays alone.
 - Matching the stand-in's root-motion speed, only above what its own run can do, fixes the
@@ -2302,3 +2305,23 @@ smoothing lagged the free-run start.
 - Why A sometimes glides ~100 units after the stick is let go while the stand-in stops at
   once (in the catch above the stand-in was blocked by B's player; whether that is the only
   cause is not known).
+
+## Owner's observation (2026-10-22, after session ai)
+
+- Observed by the owner, watching copy B live during these sessions: when A runs, the Talion
+  stand-in does not play a run animation; it plays the walking animation at running speed.
+- This contradicts what sessions ag and ah wrote from `PrintWindow` stills ("runs with a long,
+  fast stride", "runs with a full stride"); those are marked wrong above. Stills 40-60 ms apart
+  at that distance did not tell a walk from a run.
+- What was measured still stands: the stand-in's own root motion reaches ~225-230 units/s
+  (A's stick-only speed is ~215-230) and caps there while A free-runs (600-750). So its graph
+  moves it at about A's run speed while showing the walk (the walk played faster, or a blend
+  held at the walk; not known which). Since session ah the free-run speed match moves that
+  same walk at A's free-run speed, so during a free-run it is a walk at 600+ units/s.
+- Derived: the stand-in's graph is missing whatever selects the run (and the free-run) on the
+  player, not only the free-run as session ah assumed. Leads, none checked: the AI's own
+  locomotion variables the gait message sets (`191BAC`: `RawMoveMag`, `MovementSpeedScaler`,
+  `AIDestinationDist`, ... by id through `191FFC`, written straight into the graph's variable
+  table, not through `176D78`); state the player's graph reads outside the 25 inputs.
+- Unknown: whether "runs" here was A at full stick, A free-running, or both (the owner's
+  words: "when player a runs").

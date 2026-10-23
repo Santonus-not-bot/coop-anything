@@ -9,10 +9,13 @@ inputs of the player's animation graph (stick, speed, turning, camera) and its r
 speed. Copy B shows a spawned Talion stand-in, AI off, moved by A's inputs through its own
 animation (`coop_puppet_move=anim`): it walks, turns and stops with A's stride, feet on the
 ground, and is put back only when it drifts past 150 units or once A stands still (within
-about 1.2 s of A letting go of the stick, creeping included). When A
-free-runs (A button), the stand-in's graph still only runs, so its root motion is scaled to
-A's speed (`coop_anim_speed`, on by default): on flat ground it keeps within ~10 units on
-average instead of falling 300 behind. Not carried yet: vaults and running jumps, attacks,
+about 1.2 s of A letting go of the stick, creeping included). But when A runs, the
+stand-in still plays its walk animation at running speed (the owner's observation; the
+notes' earlier "runs with a full stride" from stills was wrong). When A free-runs (A
+button), the stand-in's own motion tops out at ~230, so it is scaled to A's speed
+(`coop_anim_speed`, on by default): on flat ground it keeps within ~10 units on average
+instead of falling 300 behind, but it is the walk moving that fast. Not carried yet: the run
+and free-run animations, vaults and running jumps, attacks,
 anything from B to A, and world state (enemies, Nemesis, quests, time).
 
 **Build and tools:** game build 3095001 only (Steam app 356190). Our guard DLL
@@ -45,11 +48,14 @@ anything from B to A, and world state (enemies, Nemesis, quests, time).
   ~800 units; use (0.71, -0.71) after a short walk for flat runs.
 
 **Next steps:**
-1. Vaults and running jumps during a free-run (the stand-in falls where A jumps). Find what
+1. The run animation: the stand-in walks while A runs (owner's observation, NOTES after
+   session ai). Find what makes the player's graph pick the run (and the free-run) that the
+   25 inputs do not carry; leads in the notes (the AI's id-keyed locomotion variables set by
+   `191BAC`/`191FFC`). Check by watching live or with captures taken close and side on;
+   stills from afar misled twice.
+2. Vaults and running jumps during a free-run (the stand-in falls where A jumps). Find what
    starts them on A (`RunningJump_AutoPicker_*` states) and whether the stand-in's graph can
    be made to play them, or move it along A's arc meanwhile.
-2. Check the stand-in's feet at free-run speed (captures side on), and whether its graph can
-   be put into the free-run itself (what the player's graph reads that the inputs do not carry).
 3. Steadier drift correction on long walks: `DeltaYaw` turns the stand-in; position writes
    made drift worse. A stops can still leave it 15-40 units off for ~1.2 s (A glides after
    letting go of the stick; NOTES session ai).

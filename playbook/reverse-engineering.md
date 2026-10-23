@@ -120,15 +120,17 @@ you a log, a script channel and native commands in one step. Worked out on Far C
   nothing itself silently skipped them, and a test running sender and receiver in one
   process hid it.
 - **When the stand-in cannot reach a mode, match its root-motion speed.** In Shadow of War the
-  stand-in's graph, given the same inputs, only ran (~230 units/s) while the sender free-ran
-  (600-750); both characters move by root motion, which a write breakpoint on the position
+  stand-in's graph, given the same inputs, moved it at no more than ~230 units/s while the
+  sender free-ran (600-750); both characters move by root motion, which a write breakpoint on the position
   and then on the per-frame motion delta showed. Send the sender's root-motion speed and scale
   the stand-in's motion just before its movement step reads it. To hook that step for one
   object only, give the object a copy of its vtable with the one slot wrapped (keep `vt[-1]`,
   the type information) instead of patching code or the class's table. Engage it only above
   what the stand-in's own animation can do: scaling every speed made walks worse at every
   start and corner. On flat free-run legs the gap fell from ~30 to ~10 units on average
-  ([NOTES](../games/shadow-of-war/NOTES.md), session ah).
+  ([NOTES](../games/shadow-of-war/NOTES.md), session ah). This fixes position only: the
+  stand-in kept playing its walk (the owner saw it live; `PrintWindow` stills from afar had
+  suggested a run), so check the animation by watching, not from distant stills.
 
 ## What to map for co-op
 
