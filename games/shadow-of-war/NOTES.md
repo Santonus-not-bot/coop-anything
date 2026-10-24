@@ -2462,4 +2462,91 @@ smoothing lagged the free-run start.
 ### Unknown
 
 - Whether `Hand_Holding` comes from the RB target or another nearby-character check.
-- What else the player can do to the stand-in (attack it, use RB on it).
+  Session al: from the combat stance a stranger nearby causes; gone with the stand-in marked
+  as the player's follower.
+- What else the player can do to the stand-in (attack it, use RB on it). Session al: its
+  strikes kill it, follower or not.
+
+## Session 2026-10-23 al: the stand-in as the player's ally
+
+### How it was found
+
+- The game's own combat log: the debug print the guard already captures
+  (`<profile>\debugprint.log`) has per-channel switch bytes at rva `2A34D1A`..`2A34D98`;
+  `tools/combat_log.py` turns them on for a 2 s walk of A and restores them. Near the stand-in
+  (283 units) A's log said `'Player_Character_DarkTalion' InCombat = TRUE`, `Sheathed = FALSE`
+  and `InStealth = TRUE` (`[COMBAT|NATIVE]`, `TargetNativePredicate`); far from it, FALSE,
+  TRUE, FALSE.
+- The game's friend marker: the script binding `SetIsPlayerFollower` leads to the setter
+  `102F0C`, which writes the byte `character+0x23B8` (`lea r15,[rcx+23B8h]`) and then tells
+  the faction, UI and squad systems; the getter is `1156AF0` (`cmp byte ptr [rcx+23B8h],0`).
+  `IsPlayerAlly` (`366B88`) is true when `+0x2700`, `+0x23B8` or `+0x2C04` is set.
+
+### Change (sow-coop, local, commit `a291b7e`)
+
+- The guard sets the stand-in's `+0x23B8` to 1 every frame (`coop_puppet_follower`, on by
+  default; probe `puppet follower on|off`, off puts it back to 0; the getter's bytes are
+  checked first). `remote` shows `follower=on/<times set>`.
+- A stand-in the game frees (vtable or health back-pointer no longer match) or kills (current
+  health 0) is dropped and logged (`is gone` / `is dead`), so the guard spawns a new one at the
+  sender within 10 s. Before, anim mode kept the stale pointer and only counted `no_xform`.
+- Tools: `combat_log.py <B x y z> [secs] [raw file]`, `attack_try.py [presses] [on|off]
+  [raw file]` (A walks 1 s along the flat path, B's player is put 91 units ahead of it, A
+  presses X four times; prints the stand-in's health before and after and the combat lines).
+- Offline 42 of 42 (new checks: the stand-in is marked, the byte stays 0 with
+  `coop_puppet_follower=off`, a freed and a killed stand-in are dropped), negative control 19
+  of 19.
+
+### Observations (live)
+
+- With the byte set, near the stand-in A's log says `InCombat = FALSE`, `Sheathed = TRUE`,
+  `TargetValid_ActivateRB = FALSE`, and no `Hand_Holding` appears. `InStealth` still flips
+  TRUE and back beside it (no effect on movement seen).
+- Two-way tracking with both stand-ins marked (2 runs each, both directions):
+
+  | | sender A | sender B | session ak (two-way) | one-way (aj) |
+  |---|---|---|---|---|
+  | straight free-run, path ratio / end gap | 1.00-1.01 / 2-4 | 0.98-1.00 / 4-7 | 1.06-1.22, put-back | 1.00 / 2-3 |
+  | free-run legs, mean gap (max) | 5.1-6.9 (17-22) | 4.8-8.0 (14-23) | 22-56 | 5-8 |
+  | walking squares, mean gap (max) | 10.0-14.4 (20-122) | 13.0-15.1 (29-133) | 29-56 | 10-11 |
+
+  One square in each direction had a put-back (max 122 and 133). No new crash in either copy.
+- Copy B's stand-in was freed by the game about 16 s after B's own player was teleported
+  ~3,000 units away (to test "far"), at the moment the game autosaved. Anim mode kept the
+  pointer; my probe write of `01` to its `+0x23B8` then went into reused memory (B was
+  restarted). A's stand-in, put back 3,000 units from A's player, was not freed.
+- The player can still kill the stand-in. On flat ground, a fresh stand-in 91 units in front
+  of A: A's strikes picked it as their target and the first hit killed it (`DmgForm_Plyr_Melee`
+  295, clamped from 428 by `TargetMinHealth` 3, then `Float_CurrentHealth` 298 -> 0 and the
+  state `Player_Death`); its body dropped ~82 units. The log says
+  `PlayerKill_AnyKill_Enemy - Rejected - Target PlayerAlly` and
+  `PlayerKill_AnyKill_Ally_NotRecentDecimateFollwr - Accepted`: the game knows it hit an ally
+  and allows it. The same with the game's own setter `102F0C` called on the stand-in (byte
+  first cleared, the setter's notifications ran, no fault), and with the health object's
+  can-damage byte (`+0x444`, set by `659E74`, logged as `SetCanDamageScript`, which the game
+  clears on the player for `PlayerInvulnerable`) at 0: then no damage formula ran, but a
+  front kick still took it from 298 to 0.
+- The character's health object (`[character+0x26A8]`): max at `+0x428`, current at `+0x42C`,
+  their ratio at `+0x430` (a fresh stand-in 298, 298, 1.0; a killed one 298, 0, 0).
+- With the replacement on: A's strikes killed the stand-in, the guard dropped it and spawned a
+  new one at once (its 10 s wait had passed), A's next strike killed that one 0.7 s later, and
+  the third (10 s later) stayed alive and tracked.
+- The string `%s was hit by attack %s, but is set to CanTakeDamage = False` (`2C775C`) belongs
+  to destructible objects (`DynamicObjectGroupBrush`, byte `+0x1E1`), not characters.
+
+### Derived
+
+- The combat stance and the walk change came from the stand-in being a stranger to the local
+  player; as a player ally it no longer pulls the player into combat, and two-way tracking is
+  back to the one-way numbers.
+- Being an ally does not keep the player's own melee off it: the game allows killing allies.
+  Keeping it alive needs the melee target choice to skip it, or the hit to do nothing.
+
+### Unknown
+
+- How the player's melee picks its target, and whether a per-character flag keeps a character
+  out of it (data properties such as `TargetFriendlyOnly` and `MatchPlayerAllyTarget` exist).
+- Why the front kick killed the stand-in at full health with `+0x444` at 0 (no damage formula
+  was logged).
+- Whether enemies attack the stand-in (none did in these runs; not checked on purpose).
+- What `InStealth` flipping beside the stand-in means.

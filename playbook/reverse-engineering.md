@@ -142,6 +142,18 @@ you a log, a script channel and native commands in one step. Worked out on Far C
   the last started one in each graph instance), see which input entries change on a button
   press, watch who reads them, and log crashes with their call stack (setting the flags with
   empty lists tripped a bounds check that pointed straight at the input node).
+- **Make the stand-in the local player's ally, and expect the game to remove it.** With both
+  copies sending, each player treated the other's stand-in as a stranger: within ~300 units
+  the player went into combat stance and walked differently, which the other copy cannot
+  mirror, so the stand-ins drifted 22-56 units apart instead of 5-8. The game's own combat log
+  (switch on its compiled-in debug channels and compare near and far) named the predicates
+  that changed. Find how the game marks friends (in Shadow of War a script binding,
+  `SetIsPlayerFollower`, led to one byte that its `IsPlayerAlly` check reads) and set it on the
+  stand-in: the combat stance went away and tracking was back to 5-8 units. Being an ally did
+  not stop the local player's own strikes from killing it (the game allows killing allies),
+  and the game also freed a stand-in once the local player went ~3000 units away. Check that
+  the stand-in is still there and alive every frame, and spawn a new one rather than keep a
+  stale pointer ([NOTES](../games/shadow-of-war/NOTES.md), session al).
 
 ## What to map for co-op
 
