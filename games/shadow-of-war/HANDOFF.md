@@ -1,6 +1,6 @@
-# Shadow of War co-op: handoff (2026-10-23, after session al)
+# Shadow of War co-op: handoff (2026-10-24, after session am)
 
-Read this first, then the "Status summary 2026-10-21" and sessions ag to al at the end of
+Read this first, then the "Status summary 2026-10-21" and sessions ag to am at the end of
 [NOTES.md](NOTES.md).
 
 **Where we are:** phase 5 (build), co-op movement working both ways on one PC. Each test
@@ -13,14 +13,15 @@ put back when it drifts past 150 units or once the other player stands still. Th
 marked as the local player's follower, so the local player no longer goes into combat stance
 beside it (`Hand_Holding` gone). Both ways at once, flat free-run legs keep within ~5-8 units
 again (session ak, before the follower mark: 22-56). The owner watched the stand-in sprint
-(2026-10-23). The local player can still strike the stand-in, and one or two hits kill it; the
-guard then spawns a new one within 10 s (also when the game frees it). A's full-stick
+(2026-10-23). Attacks no longer aim at the stand-in or hurt it: two stubs make the game's
+attack target check reject it and drop every hit on it (24 strikes beside it, untouched). If
+it is ever freed or killed anyway, the guard spawns a new one within 10 s. A's full-stick
 movement is itself a walk; its run is the A-button free-run. Not carried or not checked yet:
 vaults and running jumps, attacks, and world state (enemies, Nemesis, quests, time).
 
 **Build and tools:** game build 3095001 only (Steam app 356190). Our guard DLL
 (`bink2w64.dll` proxy) and probe live in the private `local/sow-coop` repo (commit
-`a291b7e`). Offline tests 42/42, negative control 19/19. The test copies' ini files are set
+`b4f8d6a`). Offline tests 42/42, negative control 19/19. The test copies' ini files are set
 up both ways (A sends to 47011 and listens on 47012; B the reverse). The hub branch
 `game/shadow-of-war` holds these notes. PR
 [#143](https://github.com/cranebeaker/coop-anything/pull/143) (branch
@@ -32,7 +33,8 @@ up both ways (A sends to 47011 and listens on 47012; B the reverse). The hub bra
   stand-in of the other about 20 s later.
 - Probe: `python -I local/sow-coop/tools/probe.py local/test-installs/sow-<a|b>-profile remote`
   (or `puppet`, `inputs`, `player`, `teleport x y z`, `pad ...`, `puppet follow anim|teleport|none`,
-  `puppet actions on|off`, `puppet follower on|off`, `puppet speed on|off`, `trace`, `wtrace`).
+  `puppet actions on|off`, `puppet follower on|off`, `puppet targetable on|off`,
+  `puppet speed on|off`, `trace <addr> <ms> [names|args]`, `wtrace`).
   `remote` also shows what anim mode's put-back check last saw (`off`, `sender_speed`,
   `standing_ms`, ...).
 - Tools drive A and watch B's stand-in; `SOW_SENDER=b` swaps the roles.
@@ -63,14 +65,16 @@ up both ways (A sends to 47011 and listens on 47012; B the reverse). The hub bra
 - Do not teleport a copy's own player thousands of units from its stand-in to test "far": the
   game freed the stand-in once (the guard now replaces it). Re-read the stand-in's pointer
   before any probe write to it.
-- `attack_try.py` kills the stand-in; anything measured right after it runs on a new one.
+- `attack_try.py` leaves the stand-in alone now; with `puppet targetable on` it kills it, and
+  anything measured right after runs on a new one.
+- A static reading of which register holds what can be wrong: check with `trace ... args`
+  before writing a stub (the hit's target was in r9, then rdx, never rcx).
+- Both copies have twice quit together about 12 minutes after launch (exit 0, no crash);
+  relaunch them and carry on.
 
 **Next steps:**
-1. Keep the local player's strikes off the stand-in: find how the player's melee picks its
-   target (the combat log shows the hit, `APPLYDAMAGE ... Hit - Distance`, and
-   `PlayerKill_AnyKill_Ally_*`) and what keeps a character out of it, or make its hits do
-   nothing. Then check that enemies leave it alone or that its health follows the other
-   player's.
+1. Check what enemies do with the stand-in now that no attack can target or hit it (they
+   should ignore it); then show the other player's health on it.
 2. Vaults and running jumps with the buttons carried (the stand-in's graph entered
    `RunningJump_Autopicker_Hold` once): whether it jumps where the sender jumps.
 3. Steadier drift correction on long walks: `DeltaYaw` turns the stand-in; position writes

@@ -2546,7 +2546,95 @@ smoothing lagged the free-run start.
 
 - How the player's melee picks its target, and whether a per-character flag keeps a character
   out of it (data properties such as `TargetFriendlyOnly` and `MatchPlayerAllyTarget` exist).
+  Session am: the target check `18626C`; its `SetTargetable` flag did not keep the stand-in out.
 - Why the front kick killed the stand-in at full health with `+0x444` at 0 (no damage formula
   was logged).
 - Whether enemies attack the stand-in (none did in these runs; not checked on purpose).
 - What `InStealth` flipping beside the stand-in means.
+
+## Session 2026-10-24 am: the player's attacks leave the stand-in alone
+
+### How it was found
+
+- The game has a `[COMBAT|TARGET]` log channel. Its strings sit in the attack target check
+  `18626C` ("'%s' Rejected (%s)- ..." for each rule), which every attack node calls for each
+  candidate target (rcx the node, rdx the attacker's context, r8 the candidate, `[r8+0x20]`
+  the candidate's health object). A read watch (probe `wtrace ... rw`) on the stand-in's
+  health object `+0x28` while A struck went through it: `2DE1EC` from `1862B1`, `IsPlayerAlly`
+  (`366B88`) from `186999`, and the "can be targeted" check `30CDB8` from `186BD1`.
+- Two of its rules explain why an ally gets struck. "MaxDistance-PlayerAlly" rejects a player
+  ally only beyond the attack node's own distance (`[node+0x188]`). "Target Cannot be
+  Targeted" (`30CDB8`) rejects a dead character (`190F1C`: health object `+0x4A0`, set in the
+  kill function next to the string "PlayerKiller") or one whose `character+0x2C16` is 0 (the
+  `CCharacter` script binding `SetTargetable`, `1BAF2E4`).
+- Static reading put the hit's target in rcx at `2C642C`. A new probe mode, `trace <addr> <ms>
+  args`, prints each call's arguments; it showed rcx is the attacker's component (A's) and r9
+  the target's health object, `[r9+0x28]` the stand-in.
+- Write watches on the stand-in's current health (`+0x42C` of its health object) caught two
+  routes. A targeted hit goes `4D0670` -> `2C642C` -> `2C658C` (logs `APPLYDAMAGE`) ->
+  `2C70C0`; a swing without a target (`PC_NT_...`) goes `1F6FE0` -> `2C966C` -> `2C99B5` ->
+  `2C9B6F` -> `2C923E` -> `2C8150` -> `2C70C0`. From `2C70C0` (rcx the attacker's component, rdx
+  the target's, `[rdx+0x28]` the target character) the hit goes on through `2EE394` ->
+  `EAA190` -> `2E4B34` -> `2E4BE8`, which writes the health.
+
+### Tried
+
+- `SetTargetable` byte (`character+0x2C16`) at 0 on the stand-in: it stayed 0, but A's strike
+  still lunged to it (translation scaling to 62 units) and the first hit killed it.
+- A stub on the target check alone: no attack aimed at the stand-in any more, but a swing
+  without a target swept through it and killed it (A's legendary Ringwraith gear revived it
+  once: `Resurrect_5Lgnd_Ringwraith_OnAllyDie`).
+- A stub on `2C642C` comparing rcx, then `[r9+0x28]`: it never fired on the untargeted route,
+  which does not pass there.
+
+### Change (sow-coop, local, commit `b4f8d6a`)
+
+- Two stubs in a fifth code page reserved near the image, each reached by a 5-byte jump
+  written with one aligned 8-byte write, bytes checked first:
+  - at the target check's second instruction (`186271`; the first ends 4 bytes into an
+    aligned qword): if `[r8+0x20]` is the stand-in's health object, return false (rejected);
+    both callers then try the next candidate;
+  - at the entry of `2C70C0`: if `[rdx+0x28]` is the stand-in, return at once.
+- `coop_puppet_targetable` (off by default; probe `puppet targetable on|off`) turns both
+  off. `remote` shows `targetable=off/<candidates rejected>/<hits dropped>`. A dropped stand-in
+  is no longer skipped. The stubs apply to every attacker, enemies included.
+- Probe `trace ... args` (above).
+- Offline 42 of 42: fixtures with the game's prologues of both functions, aligned as in the
+  game, reject the stand-in and drop hits on it while accepting another character, accept it
+  again once it is dropped, and accept it with `coop_puppet_targetable=on`. Negative control
+  19 of 19 (the stubs are not wired in; the check fails).
+
+### Observations (live, final build)
+
+- `attack_try.py 8` three times (24 strikes, the stand-in 91 units in front of A): it stayed
+  at 298 of 298 and did not move; no player hit landed on a `PC_Stats` target; the hit stub
+  dropped 4 hits; the target check rejected it ~107,000 times (every frame, every node).
+  Baseline with `puppet targetable on`: dead after the first strikes.
+- Two-way tracking with both hooks on (2 runs each, both directions):
+
+  | | sender A | sender B | session al |
+  |---|---|---|---|
+  | straight free-run, path ratio / end gap | 0.94 / 53 (A ran 682 units), 1.00 / 1 | 1.00 / 0-9 | 0.98-1.01 / 2-7 |
+  | free-run legs, mean gap (max) | 4.6-8.1 (11-24) | 3.4-6.4 (8-26) | 4.8-8.0 (14-23) |
+  | walking squares, mean gap (max) | 9.2-10.9 (17-124) | 6.8 (49), 24.3 (131, 5 put-backs) | 10.0-15.1 (20-133) |
+
+  No crash in either copy.
+- Twice on 2026-10-23 (19:33 and 22:33), both copies quit at the same moment about 12 minutes
+  after launch, exit code 0, no crash lines. Not from the guard or the tools (cause unknown).
+
+### Derived
+
+- Shadow of War lets the player hurt allies by design: an ally near enough is a valid target,
+  and a swing hits whatever its sword sweeps through. A stand-in has to be taken out of both
+  the target choice and the hit itself.
+- The movement batch did not change with the hooks (they touch no movement); its two outliers
+  (a straight run where A ran 682 units, a square with five put-backs) look like the run, not
+  the stand-in.
+
+### Unknown
+
+- Whether enemies now leave the stand-in alone in a fight (the stubs apply to them too; not
+  checked).
+- Whether anything else still reacts to it as a target (no hit reaction was seen; it did not
+  move in 24 strikes).
+- What closed both copies at once about 12 minutes after launch.

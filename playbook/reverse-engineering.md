@@ -149,11 +149,22 @@ you a log, a script channel and native commands in one step. Worked out on Far C
   (switch on its compiled-in debug channels and compare near and far) named the predicates
   that changed. Find how the game marks friends (in Shadow of War a script binding,
   `SetIsPlayerFollower`, led to one byte that its `IsPlayerAlly` check reads) and set it on the
-  stand-in: the combat stance went away and tracking was back to 5-8 units. Being an ally did
-  not stop the local player's own strikes from killing it (the game allows killing allies),
-  and the game also freed a stand-in once the local player went ~3000 units away. Check that
-  the stand-in is still there and alive every frame, and spawn a new one rather than keep a
-  stale pointer ([NOTES](../games/shadow-of-war/NOTES.md), session al).
+  stand-in: the combat stance went away and tracking was back to 5-8 units. The game also
+  freed a stand-in once the local player went ~3000 units away. Check that the stand-in is
+  still there and alive every frame, and spawn a new one rather than keep a stale pointer
+  ([NOTES](../games/shadow-of-war/NOTES.md), session al).
+- **Keep the stand-in out of attacks twice: where targets are chosen and where hits land.**
+  Being an ally did not stop the local player's strikes from killing the stand-in: Shadow of
+  War lets the player hit allies (an ally within an attack's own distance stays a valid
+  target, and a swing hits whatever its sword sweeps through), and the game's own
+  "targetable" and "can be damaged" flags did not help. A read watch on the stand-in's
+  health object during a strike led to the attack target check (one function every attack
+  asks about each candidate); a stub there that rejects the stand-in stopped the strikes
+  aiming at it. A swing without a target still killed it, by another route: a write watch on
+  its health caught both routes meeting in the function that applies a hit, and a second
+  stub that returns at once for the stand-in kept it untouched through 24 strikes (session
+  am). Check the arguments live before you rely on them: a probe trace that prints each
+  call's arguments showed the target was not in the register the static reading suggested.
 
 ## What to map for co-op
 
