@@ -2417,3 +2417,49 @@ smoothing lagged the free-run start.
   through 10 rounds of walk then free-run (`tools/watch_loop.py 10`, mod commit `846ee90`).
   The stand-in's graph reached `Sprint` in all 10 rounds, after A's each time.
 - The owner watched copy B and confirmed: "the stand-in in copy B sprints now."
+
+## Session 2026-10-23 ak: two-way
+
+### Change
+
+- Test copies' ini settings mirrored: A also listens (`coop_listen=47012`, `coop_show=puppet`,
+  `coop_puppet_ai=off`, `coop_puppet_move=anim`, `coop_puppet_spawn=Talion`); B also sends
+  (`coop_send=127.0.0.1:47012`). No guard code change was needed: one copy already sends and
+  receives in the offline case `coop_puppet_walk`, and the input recorder only records the
+  local player's animation object, so the stand-in's applied inputs are not sent back.
+- Tools take the direction from `SOW_SENDER` (`a` default, `b`: B sends and A shows the
+  stand-in; `probe.profiles()`): `drift.py`, `run_compare.py`, `graph_actions.py`,
+  `watch_loop.py`, `puppet_motion.py`, `settle_hunt.py`.
+- `coop_puppet_walk` also checks that the receiving side never writes the local player's
+  action lists or flags. Offline 42 of 42, negative control 19 of 19 (mod commit `8936722`).
+
+### Observations (live)
+
+- Both copies send and show the other's Talion stand-in (A received ~52 packets a second,
+  B ~58; both report the other player 40.5 units off at rest). Each stand-in gets the other's
+  inputs and buttons, and its graph reaches `Sprint` when the other free-runs, in both
+  directions. No crash in either copy.
+- Tracking is worse than one-way in both directions: free-run legs mean gap 22-56 (one-way:
+  5-8), straight free-runs 1.06-1.22 of the sender's path with a put-back (one-way: 1.00),
+  walking squares 29-56 (one-way: 10-11). The sender walks unevenly (45-250 units/s where it
+  held 215-230).
+- The sender's own graph is in `Hand_Holding` while it walks near its stand-in of the other
+  player (seen at 308 units; at 810 and 3,010 units it walks `Idle_To_Walk_Forward` ->
+  `Walking` as in one-way). The stand-in on the other side, given the same inputs, walks
+  normally, so it outpaces the sender.
+- Near the stand-in the sender's graph also gets `TargetValid_ActivateRB` (on change only),
+  set by `17B35A8`, which logs `[COMBAT|NATIVE]: '%s' %s = %s (TargetNativePredicate)`: the
+  combat targeting counts the stand-in as a valid target for the RB action.
+- Clearing the button flags on the sender's own stand-in changed nothing (gap 46): not the
+  cause.
+
+### Derived
+
+- In two-way play each player reacts to the other's stand-in as to a nearby character (most
+  likely as a combat target), which changes its own movement; the other copy cannot mirror
+  that, so the stand-ins drift. Not a sync error: the stand-in must stop being a target.
+
+### Unknown
+
+- Whether `Hand_Holding` comes from the RB target or another nearby-character check.
+- What else the player can do to the stand-in (attack it, use RB on it).
