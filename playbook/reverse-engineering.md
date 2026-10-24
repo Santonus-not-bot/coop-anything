@@ -137,8 +137,8 @@ you a log, a script channel and native commands in one step. Worked out on Far C
   graph's input nodes read them only while two player flags on the character are set. An AI
   character has empty lists and the flags off, so the stand-in never saw the A button and
   never left its walk; with the sender's lists (kept full) and the two flags it entered the
-  free-run 80 ms after the sender, and the speed workaround above was no longer needed
-  (session aj). To find such a path: read the graph's state names live (Shadow of War keeps
+  free-run 80 ms after the sender (the owner watched it sprint), and the speed workaround
+  above was no longer needed (session aj). To find such a path: read the graph's state names live (Shadow of War keeps
   the last started one in each graph instance), see which input entries change on a button
   press, watch who reads them, and log crashes with their call stack (setting the flags with
   empty lists tripped a bounds check that pointed straight at the input node).

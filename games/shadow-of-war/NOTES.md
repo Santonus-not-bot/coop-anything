@@ -2405,7 +2405,15 @@ smoothing lagged the free-run start.
 ### Unknown
 
 - Whether the stand-in's free-run looks right (not watched yet; the graph state says
-  `Sprint`).
+  `Sprint`). Answered below.
 - Vaults and running jumps with the buttons: the stand-in's graph entered
   `RunningJump_Autopicker_Hold` once with A; whether it jumps where A jumps is not checked.
 - What else `0x1129` switches on for an AI character (no side effect seen in ~15 minutes).
+
+### Owner's check (2026-10-23)
+
+- Both copies relaunched with the final build (`F196B506...`), B's player and camera turned
+  toward A's free-run path (`teleport 24000 43092.5 12420`, then the right stick), and A run
+  through 10 rounds of walk then free-run (`tools/watch_loop.py 10`, mod commit `846ee90`).
+  The stand-in's graph reached `Sprint` in all 10 rounds, after A's each time.
+- The owner watched copy B and confirmed: "the stand-in in copy B sprints now."

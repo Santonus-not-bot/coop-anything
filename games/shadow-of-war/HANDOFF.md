@@ -14,12 +14,12 @@ with A's buttons its graph free-runs when A does (`A_Button_JustPressed` -> `Spr
 drifts past 150 units or once A stands still (within about 1.2 s of A letting go of the
 stick, creeping included). A's full-stick movement is itself a walk in this game; its run is
 the A-button free-run. Not carried or not checked yet: vaults and running jumps, attacks,
-anything from B to A, and world state (enemies, Nemesis, quests, time). The free-run has not
-been watched yet (the graph state says `Sprint`).
+anything from B to A, and world state (enemies, Nemesis, quests, time). The owner watched
+the free-run and confirmed the stand-in sprints (2026-10-23).
 
 **Build and tools:** game build 3095001 only (Steam app 356190). Our guard DLL
 (`bink2w64.dll` proxy) and probe live in the private `local/sow-coop` repo (commit
-`5203d36`). Offline tests 42/42, negative control 19/19. The hub branch
+`846ee90`). Offline tests 42/42, negative control 19/19. The hub branch
 `game/shadow-of-war` holds these notes. PR
 [#143](https://github.com/cranebeaker/coop-anything/pull/143) (branch
 `game/shadow-of-war-2`) has everything up to session ag.
@@ -54,8 +54,9 @@ been watched yet (the graph state says `Sprint`).
   bounds check stops it (NOTES session aj).
 
 **Next steps:**
-1. Have the owner watch the stand-in free-run, then check vaults and running jumps with the
-   buttons carried (the stand-in's graph entered `RunningJump_Autopicker_Hold` once).
+1. Vaults and running jumps with the buttons carried (the stand-in's graph entered
+   `RunningJump_Autopicker_Hold` once): whether it jumps where A jumps. `watch_loop.py`
+   repeats free-runs for someone watching copy B.
 2. Steadier drift correction on long walks: `DeltaYaw` turns the stand-in; position writes
    made drift worse. A stops can still leave it 15-40 units off for ~1.2 s (A glides after
    letting go of the stick; NOTES session ai).
