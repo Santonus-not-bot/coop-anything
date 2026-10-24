@@ -142,6 +142,19 @@ you a log, a script channel and native commands in one step. Worked out on Far C
   the last started one in each graph instance), see which input entries change on a button
   press, watch who reads them, and log crashes with their call stack (setting the flags with
   empty lists tripped a bounds check that pointed straight at the input node).
+- **In the air, place the stand-in by position, and do not use the game's teleport for it.**
+  A running jump moves the player by the jump itself (in Shadow of War 1,000+ units/s off a
+  ledge), not by root motion: the stand-in's graph played the same jump from the carried
+  buttons and stayed on the ledge. Send a "where is the player" signal: no animation input
+  said so, but diffing the player object standing, mid-fall and landed found a locomotion-mode
+  byte that reads "air" from takeoff to landing. While it does, set the stand-in's transform to
+  the sender's every frame and hand it back to its own animation with one put-back on landing.
+  Two traps: the game's teleport put the character on the ground below the point (it is meant
+  to place characters somewhere safe), and the character's movement component rewrote its
+  position from its own state every frame; skip that component's per-frame update too while
+  you place it (a write watch on the position names the writer). The stand-in then followed a
+  jump and a 5,700-unit fall ~60 ms behind ([NOTES](../games/shadow-of-war/NOTES.md),
+  session an).
 - **Make the stand-in the local player's ally, and expect the game to remove it.** With both
   copies sending, each player treated the other's stand-in as a stranger: within ~300 units
   the player went into combat stance and walked differently, which the other copy cannot

@@ -1,12 +1,12 @@
-# Shadow of War co-op: handoff (2026-10-24, after session am)
+# Shadow of War co-op: handoff (2026-10-24, after session an)
 
-Read this first, then the "Status summary 2026-10-21" and sessions ag to am at the end of
+Read this first, then the "Status summary 2026-10-21" and sessions ag to an at the end of
 [NOTES.md](NOTES.md).
 
 **Where we are:** phase 5 (build), co-op movement working both ways on one PC. Each test
 copy streams its player over loopback UDP every frame (position, rotation, health, the 25
-inputs of the player's animation graph, its root-motion speed and its buttons, the non-zero
-entries of its game-action lists) and shows the other player as a spawned Talion stand-in,
+inputs of the player's animation graph, its root-motion speed, its buttons (the non-zero
+entries of its game-action lists) and its locomotion mode) and shows the other player as a spawned Talion stand-in,
 AI off, moved by those inputs through its own animation (`coop_puppet_move=anim`): it walks,
 turns, stops and free-runs (`Sprint`, about 80 ms later) with the other player's stride. It is
 put back when it drifts past 150 units or once the other player stands still. The stand-in is
@@ -15,13 +15,16 @@ beside it (`Hand_Holding` gone). Both ways at once, flat free-run legs keep with
 again (session ak, before the follower mark: 22-56). The owner watched the stand-in sprint
 (2026-10-23). Attacks no longer aim at the stand-in or hurt it: two stubs make the game's
 attack target check reject it and drop every hit on it (24 strikes beside it, untouched). If
-it is ever freed or killed anyway, the guard spawns a new one within 10 s. A's full-stick
-movement is itself a walk; its run is the A-button free-run. Not carried or not checked yet:
-vaults and running jumps, attacks, and world state (enemies, Nemesis, quests, time).
+it is ever freed or killed anyway, the guard spawns a new one within 10 s. While the other
+player is in the air (a running jump, a fall) the stand-in is placed where it is every frame
+and handed back to its own animation on landing: it followed a jump off the tower and a
+5,700-unit fall ~60 ms behind and landed 0.1 units off (it used to stay on the ledge). A's
+full-stick movement is itself a walk; its run is the A-button free-run. Not carried or not
+checked yet: climbing, vaults, attacks, and world state (enemies, Nemesis, quests, time).
 
 **Build and tools:** game build 3095001 only (Steam app 356190). Our guard DLL
 (`bink2w64.dll` proxy) and probe live in the private `local/sow-coop` repo (commit
-`b4f8d6a`). Offline tests 42/42, negative control 19/19. The test copies' ini files are set
+`03970c2`). Offline tests 42/42, negative control 19/19. The test copies' ini files are set
 up both ways (A sends to 47011 and listens on 47012; B the reverse). The hub branch
 `game/shadow-of-war` holds these notes. PR
 [#143](https://github.com/cranebeaker/coop-anything/pull/143) (branch
@@ -33,7 +36,7 @@ up both ways (A sends to 47011 and listens on 47012; B the reverse). The hub bra
   stand-in of the other about 20 s later.
 - Probe: `python -I local/sow-coop/tools/probe.py local/test-installs/sow-<a|b>-profile remote`
   (or `puppet`, `inputs`, `player`, `teleport x y z`, `pad ...`, `puppet follow anim|teleport|none`,
-  `puppet actions on|off`, `puppet follower on|off`, `puppet targetable on|off`,
+  `puppet actions on|off`, `puppet follower on|off`, `puppet targetable on|off`, `puppet air on|off`,
   `puppet speed on|off`, `trace <addr> <ms> [names|args]`, `wtrace`).
   `remote` also shows what anim mode's put-back check last saw (`off`, `sender_speed`,
   `standing_ms`, ...).
@@ -45,6 +48,9 @@ up both ways (A sends to 47011 and listens on 47012; B the reverse). The hub bra
   `settle_hunt.py` repeats a run until the stand-in ends far from the sender. Watch it:
   `view-standin.ps1 -Out <prefix> -Turn` once, then `view-sprint.ps1` or `view-steer.ps1`,
   or `watch_loop.py` while someone watches copy B.
+- Jumps: `jump_track.py 1,0` (a running jump off the tower ledge and the fall, both heights
+  and the gap; the sender ends ~5,700 units down, the next tool run teleports it back);
+  `air_flags.py <profile> <offsets...>` samples player bytes through a walk, run and jump.
 - The game's combat log: `combat_log.py <B x y z>` (A walks with the combat channels on);
   `attack_try.py [presses] [on|off]` (A strikes beside its stand-in, health before and after).
 - A crash in game code leaves `crash:` lines with the call stack in the copy's guard log.
@@ -71,12 +77,15 @@ up both ways (A sends to 47011 and listens on 47012; B the reverse). The hub bra
   before writing a stub (the hit's target was in r9, then rdx, never rcx).
 - Both copies have twice quit together about 12 minutes after launch (exit 0, no crash);
   relaunch them and carry on.
+- The game's teleport puts a character on the ground below the point: to place one in the
+  air, write its transform and keep its movement component's step and frame update quiet.
 
 **Next steps:**
 1. Check what enemies do with the stand-in now that no attack can target or hit it (they
    should ignore it); then show the other player's health on it.
-2. Vaults and running jumps with the buttons carried (the stand-in's graph entered
-   `RunningJump_Autopicker_Hold` once): whether it jumps where the sender jumps.
+2. Climbing, vaults and wall runs: what locomotion mode the sender is in (`air_flags.py`),
+   and whether the stand-in follows (the same position-follow may cover them). Also a short
+   hop that lands on the same level, and whether a landing shows a one-frame flash.
 3. Steadier drift correction on long walks: `DeltaYaw` turns the stand-in; position writes
    made drift worse. A stops can still leave it 15-40 units off for ~1.2 s (NOTES session ai).
 4. Other buttons the lists now carry (attacks, stealth, interactions), then world state:

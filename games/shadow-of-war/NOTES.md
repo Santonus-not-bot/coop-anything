@@ -2638,3 +2638,84 @@ smoothing lagged the free-run start.
 - Whether anything else still reacts to it as a target (no hit reaction was seen; it did not
   move in 24 strikes).
 - What closed both copies at once about 12 minutes after launch.
+
+## Session 2026-10-24 an: the stand-in follows jumps and falls
+
+### Observations (live, before the change)
+
+- A running jump off the tower ledge (world direction (1, 0) from the test start: 0.7 s walk,
+  then the free-run): A's graph goes `Sprint` -> `RunningJump_Assisted_Wraith`, the stand-in's
+  `RunningJump_AutoPicker_3m` -> `RunningJump_Autopicker_Hold` -> `RunningJump_Assisted_Wraith`
+  about 80 ms later (`graph_actions.py`). A takes off at 1,000-1,270 units/s, rises 53 units
+  and falls ~5,700 units to the valley floor; the stand-in stays at the ledge's height, is 150
+  units behind within 0.15 s and is then put back again and again.
+- A put-back never lifts it: the game's teleport (`19B7AC4` -> `658CBC`) places a character on
+  the ground below the given point. The stand-in "teleported" to A in the air landed 2,374
+  units down at the foot of the tower; a probe `teleport` of the player 3,000 units up left it
+  on the ground too.
+- No float input of the player's graph says "in the air". `tools/air_diff.py` (A standing, then
+  in the fall after the jump, then landed; two falls agree) and `tools/air_flags.py` (through a
+  walk, free-run and jump) on the player object found:
+  - `player+0xEE0`, a locomotion mode: 1 walking or standing, 6 then 3 in a free-run, 2 from
+    the jump's takeoff (height +0) through the fall and the landing (it stayed 2 for ~1.4 s
+    on the ground after the 5,700-unit fall), then 1. Never 2 on the flat free-run path.
+  - `+0x112B` and `+0x1130` (1 on the ground) drop to 0 about 0.1 s after takeoff; `+0x2440`
+    goes to 1 just before the jump, `+0x2F81` at takeoff; a velocity vector near `+0x10B4`
+    (vertical part -770 to -1,930 units/s in the fall).
+
+### Tried
+
+- The teleport's last argument (`r9b`, 1 in the wrapper) at 0, by calling `658CBC` with the
+  wrapper's own manager pointer: the stand-in still landed at the foot of the tower.
+- Skipping the stand-in's movement step (slot `0x80`, `191868`) while A was in the air: no
+  change (113 of 113 steps skipped).
+- Writing its transform in place (`+0xAC`, as the transform setter `14554C` does, and `+0xB8`)
+  instead of the teleport: it rose with A for 0.1 s (+4, +16 units, within 0.7), then was back
+  on the ground. A write watch on its height found the other writer: its movement component's
+  frame update, slot `0x100` (`2FFC1C`, the same as the player's class), through `250C1C` ->
+  `14554C`, from `301484`.
+
+### Change (sow-coop, local, commit `03970c2`)
+
+- Packet version 6: the sender's locomotion mode byte (`player+0xEE0`) in the formerly
+  reserved field (still 556 bytes).
+- Anim mode, while the sender's mode is 2: the stand-in's movement step and frame update are
+  skipped (the vtable copy wraps slot `0x100` too, head bytes checked) and its transform is
+  set to the sender's every frame; on the first frame back on the ground, one teleport puts
+  it on the ground there and its own movement takes over. `coop_air_follow` (on; probe
+  `puppet air on|off`); `remote` shows `air=on/<frames>/<steps skipped>/<landings>`.
+- Offline 42 of 42 (the receive case flies the sender on a ~100-unit arc with mode 2: the fake
+  stand-in's own transform must rise past 50 although a fake frame update puts it back on the
+  ground every frame unless skipped; its steps are mostly skipped; on landing a teleport puts
+  it on the ground; with the update skip removed the check fails). Negative control 19 of 19.
+- Tools: `jump_track.py [dx,dz] [free-run s] [s]` (heights and gap through a jump and fall,
+  with A's mode and B's air counters), `air_diff.py`, `air_flags.py`.
+
+### Observations (live, final build)
+
+- The same jump with air-follow: the stand-in follows the whole jump and fall about 60 ms
+  behind (150-220 units higher at full fall speed, ~37 units back horizontally), lands 0.0-0.1
+  units from A, one landing put-back. The same with B jumping and A showing the stand-in.
+  With `puppet air off` in the same jump: 118 put-backs, the stand-in bouncing between the
+  ledge, the foot of the tower and the valley floor.
+- Two-way flat batch (2 runs each, both directions): straight free-run 0.89-1.02 of the path,
+  11-62 apart at the end (A's path was 570-592 units, longer than earlier sessions' ~500);
+  free-run legs mean 4.0-8.4 (max 16-31); walking squares mean 12.0-18.6 (max 43-129, 1-2
+  put-backs); every run ended 0.0-0.1 apart. No crash. Both copies counted air frames during
+  this batch (about one landing per run), although the flat path never shows mode 2.
+
+### Derived
+
+- Jumps and falls are not root motion; the stand-in can play them from the buttons but has to
+  be placed by position while the sender is in the air, and handed back on landing.
+- The game's teleport is for putting characters somewhere safe, not for placing them; a
+  character's position is a plain field, and its movement component writes it every frame.
+
+### Unknown
+
+- Where the air frames in the flat batch came from (likely the teleport at each run's start,
+  after which the player settles in mode 2 for a moment; not checked).
+- Climbing, vaults and wall runs: their mode values, and whether the stand-in follows them.
+- Short hops that land on the same level (only the tower drop was measured).
+- Whether the stand-in shows its old position for a frame on landing, before the teleport
+  is applied (not watched).
