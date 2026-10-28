@@ -2714,3 +2714,26 @@ smoothing lagged the free-run start.
 - Which interactions change the receiver's world when the stand-in plays them; only the
   seeing stone was watched.
 - What the receiver should show while the sender sits in the Nemesis screen after a death.
+
+## Session 2026-10-28 as: the test world after a death
+
+### Observations
+
+- After A's player had died twice, A's autosaved world had a large enemy (3,750 health)
+  about 1,360 units from the test start and ~170 units above it. In later runs at the start,
+  fire and thrown rocks took A's player from 708 to 0 and A's stand-in from 298 to 3. The
+  stand-in's damage got past the stub on `2C70C0` that drops every sword hit on it, so this
+  damage reaches health another way.
+- With A's test save restored from a backup taken before any co-op work, no living
+  character other than the players and stand-ins was within 2,000 units of the start in
+  either copy, and nobody lost health through repeated runs of every check.
+- Live checks in both directions (the sender's walk and free-run against its stand-in,
+  attacks, the follower mark, the receiver's own strikes beside the stand-in) each failed
+  as expected when the feature under test was switched off through the probe: the gap grew
+  to the whole path, no attack reached the stand-in, the follower byte stayed 0, and the
+  receiver's strikes took the stand-in to 3 health.
+
+### Unknown
+
+- Which function applies area damage (fire, thrown rocks), and so how to keep the stand-in
+  out of it.

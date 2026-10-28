@@ -69,6 +69,12 @@ animation checker.
 - **Teleports fail silently.** A test put a player inside a wall and then "found" a bug.
   Assert the precondition (player really is inside the trigger) before asserting the
   result.
+- **A death in a test changes the test world.** In Shadow of War a test copy whose player
+  died autosaved a different world: a large enemy came to the test start and its fire hurt
+  the player and the stand-in in later checks. A health invariant (no player or stand-in may
+  lose health during a check) is what showed it. Before a suite, assert that no living
+  stranger is near the test start, and restore the test copy's save from a backup when one
+  is ([NOTES](../games/shadow-of-war/NOTES.md), session as).
 - **Check streamed-object ownership.** Validate current-area identity before reusing a trigger; stale registrations can survive a load ([Friend or Foe](../games/spider-man-friend-or-foe/NOTES.md)).
 - **Low memory kills long runs.** Run tests one at a time on a busy PC, in short
   batches, and clean up any game process you started.
