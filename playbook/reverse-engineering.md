@@ -187,6 +187,14 @@ you a log, a script channel and native commands in one step. Worked out on Far C
   stub that returns at once for the stand-in kept it untouched through 24 strikes (session
   am). Check the arguments live before you rely on them: a probe trace that prints each
   call's arguments showed the target was not in the register the static reading suggested.
+- **Carry the other player's attacks by name hash, and end them yourself.** Copied buttons do
+  not make a stand-in attack when the game reads attacks from command input. Find where
+  every attack starts (its log line names the attack) and start the sender's attack on the
+  stand-in through the same entry. Attack records sit at different addresses in each copy,
+  so send an id both copies share: in Shadow of War each record carries the game's hash of
+  its name, and all records are one table sorted by that hash. An AI-type stand-in may lack
+  whatever ends the player's attacks, so stop its attack when the sender's ends, under the
+  same conditions the game's own callers check (session aq).
 
 - **A fixed asset pool overflows when co-op loads more.** Loading an extra content pack (in
   Modern Warfare 2 the Spec Ops zone that holds the co-op player bodies) on a heavy level

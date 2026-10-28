@@ -2605,3 +2605,64 @@ smoothing lagged the free-run start.
 
 - Whether enemies notice the stand-in once it fights (attacks are not carried yet).
 - Whether other enemy kinds (captains, beasts) behave the same; only this group was watched.
+
+## Session 2026-10-28 aq: the stand-in plays the other player's attacks
+
+### Observations
+
+- With the combat debug channels on in B while A struck beside B's stand-in, B's log had no
+  attack input and no attack start for the stand-in: the player's strikes come from command
+  input (`[COMBAT|INPUT] OnCommandOn : 107 (CombatPrimary01)`), not from the action lists the
+  stand-in gets.
+- Every attack starts in `2E297C` (StartAttack, logs `Start Attack: <name>, Node: ..., Target:
+  ..., Anim: '<anim>'`): `rcx` the attacker's health object (`[character+0x26A8]`), `rdx` a
+  node or null, `r8` the attack record, `r9` the target or null, then on the stack a float
+  (1.0), two bytes and a pointer. The player's strikes (from `2C4161`) and the AI's attacks
+  (from `418794`) both call it through `2D6B3C`, which zeroes the health object's `+0xF0`,
+  `+0xF8`, `+0x108`, `+0x110` and jumps there.
+- The health object keeps the current attack's record at `+0xE0` (0 once it ends) and its
+  start time at `+0x470` (a millisecond clock). One strike of A: `PC_XHeld_HeavyAtk_Into_L`,
+  then `PC_NT_L1_D1_F_LL_RL_04` 156 ms later, which ended about 2 s after.
+- Attack records (type `0xA15` at `+0`, a 32-bit id at `+4`, name pointer at `+0x20`) sit at
+  different addresses in the two copies, but the id is the same: it is the game's name hash
+  (`423E70`). They are the 40-byte entries of one table held at `[27008F8]` (count `+0x28`,
+  array `+0x38`, sorted by the id; the game's own find-by-name `1B078DC` hashes the name and
+  searches it with `278540`). The table held 16,976 records; the 4,094 found through the
+  descriptor all had different ids.
+- Started on B's stand-in by hand (`2D6B3C` with no node, no target, scale 1), an attack
+  logged `Start Attack` with its animation and drew the stand-in's sword. It never ended:
+  the next start of the same attack logged `Duplicate attack`. The stand-in's health object
+  has no player links: `+0x40` and `+0x50` are 0, where the player's hold the player and an
+  object `StartAttack` hands the attack to (`573D34`).
+- The game's own callers stop an attack with `2EA790(health, 0)`, and only while `+0xE0` is
+  still their attack and `+0xD8` is 0.
+- While B's stand-in also got A's buttons and animation inputs from an idle A, the swing
+  was cut off by the sheathe and idle states: in B's window the sword showed in two of eight
+  frames. Without them it stayed out through the swing.
+
+### Change
+
+- Packet version 8 adds the sender's current attack id and start time. The receiver starts
+  each new one (id or start time changed) on the stand-in through `2D6B3C`, and when the
+  sender's attack ends it stops the stand-in's with `2EA790` under the game's own conditions.
+- Offline checks: fake start, stop and attack table; one copy's own player's attack reaches
+  its stand-in and is stopped; a received attack is started, stopped, and started again when
+  repeated.
+
+### Observations (live, final build)
+
+- A struck twice beside B's stand-in. B's log showed the stand-in's chain with A's timing:
+  `PC_XHeld_HeavyAtk_Into_L`, then `PC_NT_L1_D1_F_LL_RR_03` 141 ms later, then
+  `PC_NT_L1_D1_F_RR_RR_01` for the second press.
+- In B's window (frames of the game window ~110 ms apart) the stand-in swung with its sword
+  out, lunged the way A faced, and stood idle with the sword on its back a few seconds later.
+- B's own player 94 units from the stand-in through three of A's strikes: no damage. Three
+  strikes 1.2 s apart gave 6 starts and 1 stop (each press chained into the next attack
+  before the last ended, as on A).
+
+### Unknown
+
+- Attacks that need a partner (executions, sync attacks): started with no target here.
+- Whether the stand-in's swings hit B's enemies (not tried).
+- Non-combat actions are attack records too and are carried the same way; which ones (one
+  came through while B loaded) was not checked.
