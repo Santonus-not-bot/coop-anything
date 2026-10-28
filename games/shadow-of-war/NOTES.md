@@ -2531,3 +2531,42 @@ smoothing lagged the free-run start.
 - Short hops that land on the same level (only the tower drop was measured).
 - Whether the stand-in shows its old position for a frame on landing, before the teleport
   is applied (not watched).
+
+## Session 2026-10-27 ao: the stand-in follows climbs
+
+### Observations (live, before the change)
+
+- A climb: after the running jump off the tower ledge, A free-runs back at the foot of the
+  tower in world direction (-1, 0), scrambles ~300 units up its wall in 0.7 s, hangs, then
+  climbs another ~300 units to a ledge.
+- Through the climb the locomotion mode (`player+0xEE0`) reads 2 for the scramble, then 3, 1,
+  3, 4 and 1 while on the wall, so it cannot tell "on a wall" from walking. The on-ground flag
+  (`player+0x112B`) stays 0 from just after leaving the ground through the whole climb; on
+  flat ground it read 1 in every run so far.
+- With the session-an build the stand-in followed the scramble (mode 2), but once the mode
+  turned 3 on the wall the landing put-back dropped it to the ground below: it ended ~600
+  units under A.
+- Two directions blocked at the start gave no climb: (-1, 0) stood still, (0, -1) ran off a
+  ledge (the directions are relative to the camera, which differs between launches).
+
+### Change
+
+- Packet version 7 adds the on-ground flag. Anim mode places the stand-in by position while
+  the sender's mode is 2 or the flag is 0, and hands it back with one put-back once both say
+  "on the ground".
+- Offline check: the receive case's arc is now 30 ms in the air, then a climb (mode 3, flag
+  0); without the flag the check fails.
+
+### Observations (live, final build)
+
+- The same climb: the stand-in followed the scramble 0.3-8 units off horizontally and 20-40
+  lower (the 50 ms delay), hung where A hung (0.0 apart) and ended at the top 0.1 apart.
+- Flat two-way check (one run each, both directions): straight free-run 0.99-1.00 of the
+  path, free-run legs mean 6.5-8.1, walking squares 6.7-11.0; no crash.
+
+### Unknown
+
+- Whether the stand-in's graph plays the climbing animations (it is placed by position; not
+  watched).
+- Vaults and wall runs on their own (none happened in these runs), and whether the flag is 0
+  anywhere on normal ground (mounts, combat moves).

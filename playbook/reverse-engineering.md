@@ -161,7 +161,9 @@ you a log, a script channel and native commands in one step. Worked out on Far C
   position from its own state every frame; skip that component's per-frame update too while
   you place it (a write watch on the position names the writer). The stand-in then followed a
   jump and a 5,700-unit fall ~60 ms behind ([NOTES](../games/shadow-of-war/NOTES.md),
-  session an).
+  session an). On a wall the mode changed four times during one climb while an on-ground
+  flag stayed 0: use "in the air or not on the ground", and the stand-in then followed
+  a climb up a tower wall too (session ao).
 - **Make the stand-in the local player's ally, and expect the game to remove it.** With both
   copies sending, each player treated the other's stand-in as a stranger: within ~300 units
   the player went into combat stance and walked differently, which the other copy cannot
