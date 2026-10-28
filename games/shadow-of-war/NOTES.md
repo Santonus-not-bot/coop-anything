@@ -2570,3 +2570,38 @@ smoothing lagged the free-run start.
   watched).
 - Vaults and wall runs on their own (none happened in these runs), and whether the flag is 0
   anywhere on normal ground (mounts, combat moves).
+
+## Session 2026-10-28 ap: enemies ignore the stand-in
+
+### Setup
+
+- Live characters come from the health objects (class vtable `1F995E0`, a read-only heap
+  search) whose owner (`+0x28`) points back (`character+0x26A8`). Right after loading, none
+  were within 4,000 units of the tower start; 17 were within 30,000, on the valley floor below
+  (a group of four with 180 health, several with 300, one with 11,165).
+- B's own player was put beside the group (so A's stand-in of it was put there in A's world)
+  and A's player ~1,500 units away; every 0.5 s for 20-25 s: the stand-in's health, the
+  characters within 1,500 units of it, the guard's target and hit counters, and A's combat log.
+
+### Observations
+
+- With the attack stubs on, 8 characters within 1,500 units, the nearest two ~130 units from
+  the stand-in all the time: none came closer, none attacked it, no hit landed on a player-type
+  target. The orcs fought each other meanwhile (infantry, a berserker, wargs; 50+ hits).
+- The same with the stand-in made targetable (stubs off), and again with the follower mark off
+  as well: nothing attacked it.
+- A's own player put beside the stand-in: the orcs attacked A at once (6 hits, A down to 3 of
+  708 health within 20 s), and the hit stub dropped one swing that reached the stand-in.
+
+### Derived
+
+- Enemy AI does not pick the stand-in as an opponent at all (an AI-off cutscene `Talion`), ally
+  or not, targetable or not; the attack stubs only matter for stray swings aimed at someone
+  else. So in a fight only the local player draws the enemies of its own copy, and the other
+  player's stand-in is a bystander there. Sharing enemies (one copy's AI fighting both players)
+  is part of the world-state work still ahead.
+
+### Unknown
+
+- Whether enemies notice the stand-in once it fights (attacks are not carried yet).
+- Whether other enemy kinds (captains, beasts) behave the same; only this group was watched.
