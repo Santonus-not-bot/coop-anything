@@ -2666,3 +2666,51 @@ smoothing lagged the free-run start.
 - Whether the stand-in's swings hit B's enemies (not tried).
 - Non-combat actions are attack records too and are carried the same way; which ones (one
   came through while B loaded) was not checked.
+
+## Session 2026-10-28 ar: what the attack sync carries, and the stand-in after a death
+
+### Observations
+
+- A's health object while A pressed each face button at the test start, with B's stand-in
+  sampled at the same time (every ~15 ms). `+0xD8` holds the current attack's node, not a
+  recoil:
+
+  | button | A's attacks (`+0xE0`) | node (`+0xD8`) | on B's stand-in |
+  |---|---|---|---|
+  | X | `PC_XHeld_HeavyAtk_Into_L`, then `PC_NT_L1_D1_F_LL_RR_03` | `PC_XHeld_HeavyAtk_Into`, `PC_PoolAttacks_XRelease` | both, ~60 ms later |
+  | Y | `PC_CounterAttempt_Fail` | `PC_Counter_Fail` | the same |
+  | B | `Activate_WorldPuzzleSeeingStone`, then `PC_HoG_Standing_Out` | `PC_Activate_...`, `PC_HoG_Standing_OutOfLoop` | both |
+  | A | `PC_QuickDash_Ringwraith` | `PC_Dash` | the same |
+
+- Hit reactions are attacks too: among enemies A got `PC_Recoil_Light_ST_F` (node
+  `PC_Recoil`) at each hit and `PC_InCombat_TurnToFace_R`; the stand-in got each ~60 ms later.
+- B at the test start activates a seeing stone (A's view turned grey). The stand-in got the
+  same attack in B's world; B's view did not change and the stand-in stood behind the stone.
+- When A died, the game showed the Nemesis screen that follows a death (the orc that killed
+  the player, the army), the world paused under it, and A's own stand-in of B was freed. The
+  guard dropped it but spawned no new one: it looked the spawn type up through an AI
+  character, and none was loaded around the tower where the game put A back.
+- The spawn-type table (type `0xA06`, 177 entries) is held at `[2702440]`; the game's
+  queued-spawn code reads that global (`1A9212F`).
+- A strike chain started next to a living enemy of B's world (600 health, 120 units straight
+  ahead of the stand-in; A's world had nothing there): the enemy kept 600, and B's combat
+  log had no damage line.
+
+### Change
+
+- The stand-in's spawn type is looked up through `[2702440]` first, through an AI character
+  only if that fails. After A died again, its stand-in of B was replaced 31 ms after the old
+  one was freed; at launch it now spawns on the first try.
+
+### Derived
+
+- One mechanism carries strikes, counters, dashes, interactions and hit reactions, since the
+  game runs all of them as attacks.
+
+### Unknown
+
+- Whether the stand-in's swings ever hurt the receiver's enemies (one enemy, one run). The
+  player's hits may come from the player-only object at `+0x50` that the stand-in lacks.
+- Which interactions change the receiver's world when the stand-in plays them; only the
+  seeing stone was watched.
+- What the receiver should show while the sender sits in the Nemesis screen after a death.
