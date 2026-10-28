@@ -2737,3 +2737,34 @@ smoothing lagged the free-run start.
 
 - Which function applies area damage (fire, thrown rocks), and so how to keep the stand-in
   out of it.
+
+## Session 2026-10-28 at: area attacks and the stand-in
+
+### Observations
+
+- Every area tick (auras, fire, explosions) asks `2E5718` about each character near it: `rcx`
+  the tick, `rdx` the character. The function logs `AOETick = %s; %s Evaluating Object.` and
+  each reason it skips one (`MustBeAlive`, `MustBeAlly`, `CombatTree type can never be hit by
+  an AOE`, ...), adds the characters it accepts to the tick's hit list (`2E68A0` on tick
+  `+0x10`) and returns nothing. Callers: `4EA50A` and `4EA689` in the tick processor `4EA0A4`
+  (which logs `[COMBAT|AOE]`), and the wrapper `2E56FC`.
+- With the receiver's player standing 94 units from the stand-in for 6 s, the receiver's
+  combat log showed 150-300 area evaluations, 9 of them of the stand-in (`CoopPuppet`): the
+  player's own aura ticks.
+- Starting area attack records on a player by hand (`PC_Radiance_AOE_Fire`,
+  `PC_ExplodeBarrel_AOE_Tick`, ...) hurt nobody: the record alone does not make the area
+  effect.
+- A stand-in that died stayed in the world as a body still named `CoopPuppet` (area ticks
+  evaluated it), next to the replacement.
+
+### Change
+
+- A stub at `2E5718`'s entry (an aligned qword) returns at once when `rdx` is the stand-in.
+  With it, the same 6 s showed no evaluation of the stand-in in the log; with it off, 9.
+
+### Unknown
+
+- Whether this keeps out the large enemy's fire from session as (that enemy did not come
+  back in 4 minutes on the same save).
+- Why a stand-in once lost 19 health while its player walked, with nothing attacking it
+  (once in four runs of every check; teleports and landings were ruled out).
