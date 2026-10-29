@@ -2885,3 +2885,26 @@ smoothing lagged the free-run start.
   lets its graph's own running jump play.
 - Whether the stand-in plays the climbing animations: a capture of copy B's window from the
   foot of the tower did not keep the stand-in in view.
+
+## Session 2026-10-29 ay: switching the stand-in to the air at takeoff
+
+### Observations
+
+- The receiver switched the stand-in to placement in the air as soon as the newest packet said
+  the sender had left the ground (its state count 2), not 50 ms later with the delayed
+  position (tried, not kept). Two jumps off the tower ledge: in one the stand-in's graph went
+  `RunningJump_Autopicker_Hold`, `RunningJump_AutoPicker_FreeJmp`, then `WallStop_To_Idle`
+  40 ms later; in the other straight to `WallStop_To_Idle`. Both then walked and idled through
+  the fall, as before.
+
+### Derived
+
+- The stand-in's graph begins its own running jump at the ledge, but ends it in a wall stop even
+  with its movement step skipped: the jump seems to need the character to fall under its own
+  movement, which placement by position does not give it.
+
+### Unknown
+
+- What the jump nodes of the graph check before they carry on (a fall reported by the movement
+  component, a ground probe, or something else).
+
