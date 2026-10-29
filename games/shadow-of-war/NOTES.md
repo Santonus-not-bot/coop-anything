@@ -2854,9 +2854,34 @@ smoothing lagged the free-run start.
 
 ### Unknown
 
-- How the player's movement starts the jump in its graph. The function that starts a graph
-  action and records its name at `graph+0x48` is `195988` (`rcx` the graph, `rdx` an action
-  object with its definition at `+0x60`); starting the sender's actions on the stand-in's graph
-  through it is the next thing to try.
+- How the player's movement starts the jump in its graph.
+
+## Session 2026-10-28 ax: starting graph actions on the stand-in
+
+### Observations
+
+- `664CA4(graph, action name, flag)` plays a named action on an animation graph: `665018` builds
+  the action from the name, `66538C` returns it if it already runs (then it is only marked),
+  else `195988` starts it. Its only caller, `664C6C` (a graph id, a name, a flag; the graph
+  found through `2FDA00`), has no direct callers: it is reached through a function table.
+- A character's graph is the entry of the animation manager's list (`[[26FFAA8]+0x6CB0]`, count
+  `+0x6720`, pointers `+0x6728`) whose owner (`+0x28`) points back to the character at
+  `+0x40`.
+- Called on the stand-in's graph from the simulation thread, `RunningJump_Assisted_Wraith` and
+  `StandingJump_LandHard` started (no fault); with the stand-in standing and its copied
+  buttons on, `A_Button_NotPressed` followed within 40 ms; with them off, nothing started.
+- Played on the stand-in when A took off from the tower ledge, it did not change the outcome:
+  the stand-in's graph went to `WallStop_To_Idle` 30 ms later.
+
+### Derived
+
+- The stand-in's own movement reaches the ledge and stops at about the moment A takes off,
+  before the receiver switches it to placement in the air (A's ground flag drops ~0.1 s after
+  takeoff, then 50 ms of interpolation delay); its graph follows the stop.
+
+### Unknown
+
+- Whether taking the stand-in off its own movement at the sender's takeoff (before the edge)
+  lets its graph's own running jump play.
 - Whether the stand-in plays the climbing animations: a capture of copy B's window from the
   foot of the tower did not keep the stand-in in view.
