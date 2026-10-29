@@ -2768,3 +2768,12 @@ smoothing lagged the free-run start.
   back in 4 minutes on the same save).
 - Why a stand-in once lost 19 health while its player walked, with nothing attacking it
   (once in four runs of every check; teleports and landings were ruled out).
+
+## Session 2026-10-28 au: watched on copy B
+
+### Observations (a person watching copy B's window)
+
+- While A walked, sprinted, struck, countered and dashed, the stand-in mostly played the first
+  part of the sheathe animation over and over.
+- After a jump off the tower and a free-run back up the wall, the stand-in hung on the ledge
+  the way A did. The leap and the climb itself were not seen: B's camera was not facing them.
