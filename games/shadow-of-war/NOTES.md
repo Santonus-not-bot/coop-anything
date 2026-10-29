@@ -2908,3 +2908,26 @@ smoothing lagged the free-run start.
 - What the jump nodes of the graph check before they carry on (a fall reported by the movement
   component, a ground probe, or something else).
 
+## Session 2026-10-29 az: the sheathe loop, continued
+
+### Observations
+
+- `Predicate_SelfIsSheathed` is not code to follow: `16B9CA8` registers it as a `Combat.Bool`
+  property of the combat predicates (a setting), not as the state itself.
+- A's character (0x3000 bytes) and combat object (`[character+0x26A8]`, 0x800 bytes) before a
+  strike, with the sword out 1 s after it, and after A had sheathed again: only two floats at
+  `character+0x1368` were equal before and after but different while drawn. No byte flag in
+  either object follows the sword.
+- Played on the stand-in's graph during its loop (`664CA4`): `IdleL`, `Hand_Holding`,
+  `Null_R_Hand` and `WeaponSheathe_Low`; none stopped the loop. Sheathe restarts in the 3 s
+  after a strike grew over consecutive runs (3, 2, 9, 9, 10).
+
+### Derived
+
+- The drawn or sheathed state the loop keeps acting on is held inside the stand-in's animation
+  graph, not in a character or combat field the guard could set.
+
+### Unknown
+
+- Which graph state or variable decides the sheathe, and what settles it for a player.
+
