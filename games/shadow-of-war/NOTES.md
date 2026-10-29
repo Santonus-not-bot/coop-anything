@@ -2931,3 +2931,11 @@ smoothing lagged the free-run start.
 
 - Which graph state or variable decides the sheathe, and what settles it for a player.
 
+
+## Session 2026-10-29 ba: watched again, every move
+
+### Observations (a person watching copy B's window, the stand-in in clear view)
+
+- Idle and the sprint looked good.
+- The strike did not really work: after it, the sheathe loop was very obvious and jarring.
+- The dash looked roughly right but turned into the sheathe loop quickly.
