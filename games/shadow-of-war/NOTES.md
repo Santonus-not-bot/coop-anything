@@ -2939,3 +2939,30 @@ smoothing lagged the free-run start.
 - Idle and the sprint looked good.
 - The strike did not really work: after it, the sheathe loop was very obvious and jarring.
 - The dash looked roughly right but turned into the sheathe loop quickly.
+
+## Session 2026-10-29 bb: the sheathe loop runs at two speeds
+
+### Observations
+
+- After one strike the stand-in restarted its sheathe either about 1 time a second or about 8
+  times a second, at random, with nothing changed: two runs without any intervention gave 5 and
+  56 restarts in 6 s, two others 4 and 59 in 5 s.
+- A's animation graph before a strike, with the sword out and after it sheathed: bytes at
+  `+0x154`, `+0x26C` and `+0x5DC` read 2 and 1. `+0x5D8` onwards holds pairs of a pointer and a
+  small state value, and which pair holds which state shifts: in a later run A's idle value at
+  `+0x5DC` was 1, with 2 in the next pair. Writing 2 to `+0x154` and `+0x26C` as well crashed
+  the game (`2FDDB5`, a bad pointer).
+- A guard change (tried, not kept) wrote "away" into the stand-in graph's `+0x5DC` whenever the
+  sender was not attacking: 7, 69 and 69 restarts in 8 s; off, 68 and 8. Copying the sender's
+  own value both ways ("out" for ~5 s after a strike): 68. Written into the graph of a stand-in
+  just spawned, it crashed the game 31 ms later (`37563F`, starting a graph action from
+  `195988`).
+- Giving the stand-in's graph its behavior resource again after a strike (`459474`): the same
+  graph object afterwards, and 4 or 60 restarts in 5 s, as without.
+- An earlier single comparison (session au, "buttons off: 1") and one here ("`+0x5DC` held at
+  2: 4 against 59") were the slow speed by chance.
+
+### Unknown
+
+- What picks the speed, and what sets the stand-in's graph back to "drawn" every cycle.
+
