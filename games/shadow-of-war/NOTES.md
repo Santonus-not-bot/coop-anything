@@ -2825,17 +2825,38 @@ smoothing lagged the free-run start.
   was placed in the air by position), and no landing.
 - Writing A's values of `+0xEE0` onto the stand-in from outside during the jump made its graph
   start `RunningJump_AutoPicker_FreeJmp`, but the game rewrote the field within the frame.
-- `+0xEE0` is not a mode byte: every frame `176F28` sets it to 0 and `1158264` appends entries
-  to a small list behind it (at most 8), so it is that list's count. The values read as
-  "modes" before (1 walking, 6 then 3 in a free-run, 2 in the air) are those counts.
+- `+0xEE0` is not a mode byte: it is the count of a list at `character+0x5D0+0x910` (at most 8
+  pointers) that `176F28` rebuilds every frame from the combat object's vector at `+0x5A8`. Its
+  entries are the character's movement states, records of type `0xA07`: `Idling`,
+  `GroundMoving`, `Sprinting`, `CombatJumping_Running`, `Jumping`, `DisableRangedMode`. In the
+  air A had `Jumping` and `DisableRangedMode` (count 2); the values read as "modes" before (1
+  walking, 6 then 3 in a free-run, 2 in the air) are these counts. The state records are the
+  entries of one table held at `[27008A0]` (110 entries), sorted by the name hash at `+4`, the
+  same in both copies.
+- The block at `character+0x5D0` is filled every frame by `174E50` (from the movement component
+  `[character+0x24A0]`) and `176F28` (from `[character+0x26A8]`), both called from `175724`.
+  Sampled through the jump, no other field of it separated air from ground (only a position).
+- A trace of the named float and bool variables A's player got through the jump showed none
+  about the air; only the speeds grew.
+
+### Tried, not kept
+
+- A hook right after the rebuild (`1758F8`, `lea rbx,[rsi+958h]`, `rsi` the block) wrote the
+  sender's movement states (sent as name hashes) into the stand-in's list while the sender was
+  off the ground. The stand-in's list then held `Jumping` all through the fall, but its graph
+  still went `RunningJump_Autopicker_Hold`, `WallStop_To_Idle`, then walking and idle.
 
 ### Derived
 
-- The stand-in's graph can play the jump; it lacks what the player's movement adds to that
-  per-frame list while airborne, and an AI's movement stops at ledges.
+- The jump is not started from that list or from graph variables: the player's own movement
+  (its traversal, the assisted running jump) drives the graph, and an AI's movement stops at
+  the ledge instead.
 
 ### Unknown
 
-- What the entries of the `+0xEE0` list are, and which ones mean "in the air".
+- How the player's movement starts the jump in its graph. The function that starts a graph
+  action and records its name at `graph+0x48` is `195988` (`rcx` the graph, `rdx` an action
+  object with its definition at `+0x60`); starting the sender's actions on the stand-in's graph
+  through it is the next thing to try.
 - Whether the stand-in plays the climbing animations: a capture of copy B's window from the
   foot of the tower did not keep the stand-in in view.
