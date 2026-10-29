@@ -2966,3 +2966,31 @@ smoothing lagged the free-run start.
 
 - What picks the speed, and what sets the stand-in's graph back to "drawn" every cycle.
 
+## Session 2026-10-29 bc: who starts the stand-in's actions
+
+### Observations
+
+- A person watching copy B: the stand-in's swing itself does not show; after a strike it goes
+  straight into the sheathe loop.
+- Traced with the stand-in's or A's graph as `rcx`, the action start `195988` was not called on
+  the simulation thread in 3 s around a strike: the game starts graph actions on its animation
+  worker threads.
+- A recording stub at `195988`'s entry (any thread; one chosen graph; return address and action
+  into a ring) over 4 s after a strike: the stand-in's graph got the same 6 starts over and over,
+  3 from `192BDA` (in `192524`, the graph's state machine) and 3 from `FAA680` (once from
+  `FAA836`, twice from `FAA9D7`). A's graph got starts from `192BDA` and from `41735E` and
+  `4173B3` (in `41730C`, beside the attack code), none from `FAA680`.
+- `FAA680` takes the graph, builds a blend action itself (curves "Linear" and "EaseIn") and starts
+  it; it skips everything when byte `+0xC4D` of the graph's owner (`graph+0x28`) is set. A's byte
+  is 0 as well. Setting it on the stand-in did not change the loop: 45, 45 and 44 restarts in 6 s
+  against 45, 44 and 8 without, interleaved.
+
+### Derived
+
+- The loop is the stand-in's own state machine changing state again and again (with `FAA680`
+  blending each change), not something the guard starts.
+
+### Unknown
+
+- Which transition of the state machine fires each cycle, and the condition behind it.
+
