@@ -2812,3 +2812,30 @@ smoothing lagged the free-run start.
 - A second watch of the jump with B's camera aimed at the ledge: the stand-in played no leap
   animation when A ran off it. The climb was again not seen (B's camera faced away after B's
   player was moved to the foot of the tower).
+
+## Session 2026-10-28 aw: why the stand-in plays no leap
+
+### Observations
+
+- Both graphs' last started actions through A's running jump off the tower ledge: A's went
+  `Sprint`, `RunningJump_Assisted_Wraith` at the ledge, then the fall, then
+  `StandingJump_LandHard` on landing. The stand-in's went `Sprint`, then `WallStop_To_Idle`
+  (its own movement stopped at the edge), briefly `RunningJump_Autopicker_Hold` and
+  `Null_Null_Channel_JumpHold`, then walking and idle actions all through the fall (while it
+  was placed in the air by position), and no landing.
+- Writing A's values of `+0xEE0` onto the stand-in from outside during the jump made its graph
+  start `RunningJump_AutoPicker_FreeJmp`, but the game rewrote the field within the frame.
+- `+0xEE0` is not a mode byte: every frame `176F28` sets it to 0 and `1158264` appends entries
+  to a small list behind it (at most 8), so it is that list's count. The values read as
+  "modes" before (1 walking, 6 then 3 in a free-run, 2 in the air) are those counts.
+
+### Derived
+
+- The stand-in's graph can play the jump; it lacks what the player's movement adds to that
+  per-frame list while airborne, and an AI's movement stops at ledges.
+
+### Unknown
+
+- What the entries of the `+0xEE0` list are, and which ones mean "in the air".
+- Whether the stand-in plays the climbing animations: a capture of copy B's window from the
+  foot of the tower did not keep the stand-in in view.
