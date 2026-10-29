@@ -2777,3 +2777,35 @@ smoothing lagged the free-run start.
   part of the sheathe animation over and over.
 - After a jump off the tower and a free-run back up the wall, the stand-in hung on the ledge
   the way A did. The leap and the climb itself were not seen: B's camera was not facing them.
+
+## Session 2026-10-28 av: the stand-in's sheathe loop
+
+### Observations
+
+- The last started action of each animation graph (`graph+0x48`), sampled every ~15 ms after
+  one strike of A: A's graph went `IdleL`, then (with A's player in combat) `Hand_Holding`, and
+  about 5 s later `Null_R_Hand` once, then idle. The stand-in's graph cycled
+  `A_Button_NotPressed`, `WeaponSheathe_Low` (about 20 ms), `Null_R_Hand` (0.15 to 0.5 s),
+  then again: 2 to 35 sheathe starts in 5 s, still going 16 s after the strike. At idle and
+  while walking it did not do this.
+- The three game-action lists of A's player and of the stand-in were the same before, during
+  and after the strike (empty once X was let go, the same counts and player flags), so the
+  stand-in is not getting different buttons.
+- The loop went on with each of these switched off: the stand-in's copied buttons and player
+  flags (also with them only written while the sender had buttons down, and with X, Y and B
+  left out of them), its animation inputs, its follower mark, the attack sync, and with its AI
+  on.
+- After the strike A's graph got `InCombat = TRUE` and `Sheathed = FALSE` from the game's
+  native predicates; the stand-in's graph got none of these log lines.
+- Which entries each move uses in the player's action lists: walking 3, 6, 121, 122; a
+  free-run adds 12, 15, 110 (the A button), 270; X 107 and 375; Y 108; B 109.
+
+### Derived
+
+- The stand-in's graph keeps asking to sheathe a weapon that its right hand no longer holds:
+  whatever tells a player's graph that the sword is away again is not updated for the
+  stand-in.
+
+### Unknown
+
+- Where that state lives and what updates it for the player.
