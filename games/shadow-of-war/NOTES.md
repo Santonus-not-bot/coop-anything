@@ -3036,6 +3036,8 @@ smoothing lagged the free-run start.
 - Frames of both windows during one strike, reset skipped: A's player draws, winds up and slashes
   for about 1.5 s with the sword out; the stand-in draws, holds the sword low while it moves and
   sheathes it within about 0.6 s.
+- A person watching copy B, three strikes with the reset skipped, then three with it: the first
+  three looked better (one sheathe, no repeats). In both, the swing showed only the sheathe.
 
 ### Derived
 
@@ -3057,3 +3059,30 @@ smoothing lagged the free-run start.
 - Why the stand-in froze once.
 - What plays a player's slashes, and why the stand-in's graph sheathes right after an attack
   (`IdleL.To_WeaponSheatheLow`) while the player's keeps the sword out.
+
+## Session 2026-10-29 be: the missing swing is a controller move
+
+### Observations
+
+- A player's strike starts no graph action for its slash. During a strike, A's animation
+  controller (`[character+1970h]`) got 2 move requests from `2C614C` (via `41A1E0`), and the
+  stand-in's got none. Each request names the animation by string, for example
+  `Elf_Lt_L1_D1_F_LL_RL_L2R_2`.
+- `2C614C` is called from `2C545C(combat-move object, character, -, attack record, ...)`. The
+  name comes from `4CA9A0(record, override, 1)` (override 0: the record's own animation) and
+  the second argument from `2E17D8(record)`. The combat-move object is
+  `[character+2FA0h]+1A0h` on players. The stand-in, an AI character, has none.
+- Calling `2C614C(controller, 0, 4CA9A0(record, 0, 1), 2E17D8(record), 0, game time, 1, 1.0)`
+  on A's own player made it slash with no button pressed. On the stand-in alone it played the
+  body motion with the sword on its back. Together with the synced attack start, frames of
+  both windows showed the stand-in winding up and slashing in step with A. The same strike
+  without the call showed no slash.
+- A probe watch command blocks that copy's pipe, so a strike sent separately ran after the
+  window. Earlier zero counts measured with a strike sent that way were empty windows.
+
+### Unknown
+
+- Whether the stand-in keeps its sword out longer than A after a played move (it held it out
+  about 15 s after one strike).
+- Whether the record's own animation matches the sender's chosen variant (A's names carry
+  variant suffixes).
