@@ -2994,3 +2994,66 @@ smoothing lagged the free-run start.
 
 - Which transition of the state machine fires each cycle, and the condition behind it.
 
+
+## Session 2026-10-29 bd: the sheathe loop was the put-back
+
+### Observations
+
+- The recording stub at `195988` also kept the caller's `r12` and `r15` and the action's target
+  (`[rdx+60h]`, read on entry: the state machine builds the action on its stack). In `192524`
+  these are the state being left and the transition that fired; both carry names (`+0x20`, when
+  bit 2 of byte 1 is set). In 4 s after a strike the stand-in's graph ran one cycle 24 times:
+  `FAA836` blends to `IdleL`, `FAA9D7` to `Prompt_Off` and `A_Button_NotPressed`, then the
+  transitions `IdleL.R_Hand_SwordHold` (to `Hand_Holding`), `IdleL.To_WeaponSheatheLow` (to
+  `WeaponSheathe_Low`) and `Hand_Holding.To_Null_Sheathing_Low` (to `Null_R_Hand`). A's graph
+  started `IdleL` once (from `41735E`) and took `IdleL.R_Hand_SwordHold`, not
+  `IdleL.To_WeaponSheatheLow`.
+- The blend to `IdleL` is queued: `FA7E10` resets a character's animation controller
+  (`[character+1970h]`) and queues the blend through `F5D0C0`, which stores the thunk `F5D750`
+  (it runs `FAA680` later). `FA7E10`'s only caller is `41BB78` (sets a character's position),
+  when its last argument and the byte `[character+19A8h]` are both set.
+- `41BB78` is called from the teleport handler `41B6B4`. The queued teleport (`19B7AC4` calls
+  `658CBC` with `r9b` 1) is handled at `4C4C45`, which passes the message's flag (`+0x58`) as
+  `41B6B4`'s last argument. With it set, `41B6B4` also logs "AI teleported." and resets the AI
+  (`77E0C0` on `[character+2C78h]`). The game's own mount code calls `41B6B4` with it clear.
+- `IdleL` restarts against the mod's put-backs (queued teleports) in 4 s after a strike,
+  alternated: put-backs and restarts 24/24, 23/23 and 25/25; with the stand-in not followed, 0/0
+  three times and one sheathe each time.
+- The queued teleport with the flag clear: no restarts in 3 runs, but once the sender stood still
+  the stand-in did not stay where it was put (24 units off, put back every frame).
+- A stub at `FA7E10`'s entry that returns for the stand-in's controller (the full teleport
+  without the animation reset): `IdleL` restarts 0, 0, 0 and 0 against 4, 3, 4 and 2 with the
+  game's reset, interleaved. The stand-in stays where it is put.
+- After some strikes a put-back does not hold, with or without the reset: the stand-in reaches the
+  sender's spot (gap 0.0) and the next frame is back where it was (21 to 24 units off, drifting
+  slowly). The put-backs then alternate every other frame.
+- Holding standing put-backs back once one has landed and the stand-in returns within 8 units of
+  its old spot inside 0.5 s (until the sender moves again): 2 to 4 put-backs per strike, 105 to
+  116 frames held back where it did not hold.
+- Once in about 20 strikes the stand-in froze: its graph started no action in 1 s and every
+  put-back was ignored, health unchanged. It began in a run with the game's reset on and stayed
+  with either setting. A new stand-in then ran 10 strikes with each setting without freezing.
+- Frames of both windows during one strike, reset skipped: A's player draws, winds up and slashes
+  for about 1.5 s with the sword out; the stand-in draws, holds the sword low while it moves and
+  sheathes it within about 0.6 s.
+
+### Derived
+
+- The sheathe loop was the mod's put-back, not the stand-in's own state machine (session bc's
+  "Derived" is wrong). Each full teleport reset the stand-in's animation controller, its graph
+  restarted at `IdleL`, and with the sword out its next transitions sheathed it.
+- The missing swing is a separate problem: the stand-in's graph does not play the slashes of the
+  attack it is given.
+
+### Guesses
+
+- The loop's two speeds (session bb) were the two put-back patterns: one put-back that holds now
+  and then (the sheathe's step takes the stand-in over 15 units off), or one that does not hold,
+  every few frames.
+
+### Unknown
+
+- What puts the stand-in back on its old spot when a put-back does not hold.
+- Why the stand-in froze once.
+- What plays a player's slashes, and why the stand-in's graph sheathes right after an attack
+  (`IdleL.To_WeaponSheatheLow`) while the player's keeps the sword out.
