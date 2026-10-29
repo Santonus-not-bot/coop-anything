@@ -2809,3 +2809,6 @@ smoothing lagged the free-run start.
 ### Unknown
 
 - Where that state lives and what updates it for the player.
+- A second watch of the jump with B's camera aimed at the ledge: the stand-in played no leap
+  animation when A ran off it. The climb was again not seen (B's camera faced away after B's
+  player was moved to the foot of the tower).
