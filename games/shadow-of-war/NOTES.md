@@ -3095,10 +3095,12 @@ smoothing lagged the free-run start.
 
 ### Watching the climb (session be)
 
-- B's camera at the foot of the tower: a player teleported there keeps its old facing, and the
-  game swings a still player's camera back behind it about 2 s later (camera 359 degrees right
-  after aiming, 157 two seconds on, with the player's yaw at 159). The right-stick aim does not
-  last unless the player is turned toward the target too; at the ledge view it was.
+- B's camera at the foot of the tower: the probe's player rotation (`+0xB8` of the player object)
+  reads the same quaternion at every spot, so the camera yaw derived from it is wrong there (the
+  aim reported 1 degree off A while B's window showed its own character from behind, facing
+  rocks, for the whole climb, with or without aiming). The game also swings a still player's
+  camera back behind the player about 2 s after a push. Not solved: the demo waits for a person
+  to turn B's camera.
 - A menu left open on a copy (the pause menu or the Army screen) ignores the right stick, and a
   B-button press closes it (two presses for the Army screen). A spot without ground killed B (a
   fall), which opened the Army screen.
