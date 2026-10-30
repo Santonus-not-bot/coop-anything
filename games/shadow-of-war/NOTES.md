@@ -3104,3 +3104,27 @@ smoothing lagged the free-run start.
 - A menu left open on a copy (the pause menu or the Army screen) ignores the right stick, and a
   B-button press closes it (two presses for the Army screen). A spot without ground killed B (a
   fall), which opened the Army screen.
+
+## Session 2026-10-29 be (continued): the leap
+
+### Observations
+
+- A's running jump is a chain of graph states with no controller move: `Sprint`, then
+  `Runningjump_Autopicker_2M_POS` through `RunningJump_AutoPicker_3m`, then (transition
+  `To_JumpAssisted_55v_35d`) `RunningJump_Assisted_Wraith`, which lasts through the fall to
+  `RunningJump_Land_AutoPicker` and `StandingJump_LandHard`.
+- The stand-in's graph, given the sender's inputs, follows the chain to `3m`, then takes
+  `FreeJmp`, `CloseTap`, `Hold` and loops the chain from `Sprint` about six times in ~100 ms until
+  `Sprint.BlockMove_All_Edges_L00` ends it in `WallStop_To_Idle`.
+- Playing `RunningJump_Assisted_Wraith` on the stand-in's graph (`664CA4`) while it sat in the chain
+  gave the full jump and landing on the first jump after a launch, and `WallStop` on every later one,
+  with every variant tried (a once-only play, plays on every frame, holding its movement step).
+  The graph start from `664D27` appeared only on the first jump.
+- `664CA4` looks the action up first in the graph's list of running ones (`66538C`: ring at
+  `graph+0x260`, node action at `+0x10`, instance at `+0x38`, instance state at `+0x74`, 2 when ended)
+  and only marks it if found. Setting the state of a stale `RunningJump_Assisted_Wraith` instance to 2
+  before each play: 5 of 5 jumps played the assisted jump and the landing (against 1 of 5).
+
+### Unknown
+
+- Whether the stand-in's jump looks right in B's window; a person watching will say.
