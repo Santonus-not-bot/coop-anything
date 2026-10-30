@@ -3128,3 +3128,23 @@ smoothing lagged the free-run start.
 ### Unknown
 
 - Whether the stand-in's jump looks right in B's window; a person watching will say.
+
+### The leap: what is known (session be, end)
+
+- Playing the sender's own jump action, `RunningJump_Assisted_Wraith`, on the stand-in's graph gives
+  the whole jump and the hard landing, but the stand-in is not drawn while it plays. Frames of copy B
+  with the action off showed it in the air for about a second; with it on, it was gone from the frame
+  right after takeoff. `FreeJmp` and `Hold` kept it visible, but the graph left them about 0.1 s after
+  takeoff (`WallStop_To_Idle`), and replaying them every frame restarted the clip each frame and showed
+  no pose (the graph flipped between `FreeJmp`, `CloseTap` and `Wraith` within milliseconds).
+- A diff of the stand-in's object in mid-fall, Wraith on against off (two runs each, only fields that
+  agree within a mode): three floats at `+0x10AC` are 0 (1.0 off); bytes or dwords at `+0x1133`,
+  `+0x225A`, `+0x2440`, `+0x2C30`, `+0x2D5C` are 0 (1 off); `+0x218C` is 10000.0 (104.0 off). Forcing the
+  floats to 1.0 each frame did not bring it back, nor did forcing all of those flag fields (probe
+  `puppet vis 3F`, checked in B's window).
+- The assisted jump is off by default (probe `puppet assist <action>|off`).
+
+### Unknown
+
+- What hides the stand-in during the Wraith jump (an effect or fade started by the action, not a field of
+  its object), and so how to keep the jump pose visible through the fall.
