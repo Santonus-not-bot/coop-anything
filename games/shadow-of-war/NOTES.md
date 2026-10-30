@@ -3092,3 +3092,13 @@ smoothing lagged the free-run start.
   chain as A's graph (`Hand_Holding`, `WeaponSheathe_Low`, `Null_R_Hand`, `IdleL`). Done once 1.2 s
   after the sender's attack ends, the graph's actions in 8 s after a strike were that chain once
   per strike (3 runs); the move is now on by default.
+
+### Watching the climb (session be)
+
+- B's camera at the foot of the tower: a player teleported there keeps its old facing, and the
+  game swings a still player's camera back behind it about 2 s later (camera 359 degrees right
+  after aiming, 157 two seconds on, with the player's yaw at 159). The right-stick aim does not
+  last unless the player is turned toward the target too; at the ledge view it was.
+- A menu left open on a copy (the pause menu or the Army screen) ignores the right stick, and a
+  B-button press closes it (two presses for the Army screen). A spot without ground killed B (a
+  fall), which opened the Army screen.
