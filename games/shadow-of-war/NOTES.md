@@ -3086,3 +3086,9 @@ smoothing lagged the free-run start.
   about 15 s after one strike).
 - Whether the record's own animation matches the sender's chosen variant (A's names carry
   variant suffixes).
+- A person watching copy B with the move played: the swings looked the same as A's, but the
+  stand-in never put its sword away.
+- Sending the stand-in's graph to `IdleL` (`664CA4`, "puppet play IdleL") runs the same sheathe
+  chain as A's graph (`Hand_Holding`, `WeaponSheathe_Low`, `Null_R_Hand`, `IdleL`). Done once 1.2 s
+  after the sender's attack ends, the graph's actions in 8 s after a strike were that chain once
+  per strike (3 runs); the move is now on by default.
