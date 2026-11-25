@@ -2377,3 +2377,108 @@ Results (one PC, test copies; real install and saves unchanged after every run):
 Not tested: a new campaign through the real difficulty screen and its first mission with guests (the bot's quick start
 skips it), loading a co-op save from the lobby, a guest leaving the lobby and the host closing it, two PCs.
 
+## Overnight run, 2026-11-25: regression, chunked joins, edge cases
+
+All on one PC with test copies; the real install and saves were unchanged after every run (the runner's check).
+
+#### Regression on the lobby/modes build (20261125-005845)
+
+36 scenarios in one batch (`run_batch.ps1`): 33 passed. The three failures:
+- `buttons` 5/14: the test was stale. Since the lobby the main menu has no "Join co-op" button (a friend opens a co-op
+  entry and clicks "Join a friend"), and on the Avenger the host's status is the player panel, which logs no
+  `status:` lines. Updated: the friend clicks `CoopCampaign`, then `CoopLobbyJoin`, then accepts the address dialog.
+  15/15 on the next build.
+- `controltest` 14/17: test timing. The host's bot answered "no" to a control request at 89 s; the guest reached the
+  Avenger 3 s later than usual and asked at 92 s, so the "no" went nowhere and the later "yes" answered the first
+  request. The host now answers 5 s later. 17/17 on the next build.
+- `overwatchguest` 5/8: no overwatch shot when the guest's soldier walked past the trooper, on both machines alike
+  (the trooper's listener was registered on the guest, `registered=true`). 8/8 when rerun on the next build. Unknown
+  why the shot did not fire once (a miss of the reaction check, line of sight, or concealment: not logged).
+
+#### Chunked whole sends in play (`joinchunk`, `missionchunk`, build 20261125-044926)
+
+Built (off by default, `CoopChunks.bChunkedWholeSend`): `CoopTacticalNet.SendWhole` sends the host's base history in
+400-byte chunks (`CoopChunks`, mode 2); each guest stores the bytes as its own `BaseHistoryData` (and the kept copy)
+and answers `CoopChunkDone`; when every guest has it, the host sends "CoopNextIsWhole" and the engine's partial history
+(the delta from that base). The host primes its base with `SendHistory` before its server opens (nobody connected, so
+nothing goes out). A send not done after `ChunkTimeoutSeconds` (90) falls back to the engine's whole send; a guest
+that leaves during a send is not waited for.
+
+- `joinchunk` 10/10: a new campaign, primed base 367,186 bytes; 918 chunks; every guest had it after 0.29 s; the
+  guest took the partial history in place of a whole one and entered the Avenger; no whole send.
+- `missionchunk` 14/14: a mission and its end with chunked sends only: the campaign (364 KB, 910 chunks), the mission
+  (422 KB, 1,055 chunks, 0.3 s) and the campaign after the mission; same fingerprints at the end.
+
+#### Edge cases (build 20261125-044926)
+
+- `lobbyleave` 9/9: a friend left the lobby and joined again (the host saw the slot disconnect, then the friend back as
+  player 2); the host closed the lobby and the friend was told.
+- `scenariomid` 16/16: a mid-game scenario for two: force level 9, alert 3, rank 4, magnetic weapons.
+- `balanced3` 11/16: the enemies were right for three players (3 pods, 15 aliens, a Purifier from force level 5 in
+  place of a trooper; the mission's schedule went from D2 to D4), but the squad of 12 was split 6/6/0: the test's
+  `@tagsquad` always splits between two players. Now `@tagowners` with four each.
+- `lobbynewreal` 5/9: a new campaign through the real difficulty screen. On a fresh profile the tutorial box is
+  ticked; with the tutorial the game loads the tutorial's own save and builds the campaign only after that mission
+  (`UIShellDifficulty.OnDifficultyConfirm`: no `CreateStrategyGameStart` when `EnableTutorial`), so the campaign was
+  never co-op and the lobby's friend was left behind. Fix: `UIScreenListener_CoopDifficulty` turns the tutorial off
+  and locks its box when the screen is opened for a co-op campaign, and marks the "play without the tutorial?" notice
+  as shown (accepting it turns the tutorial back on).
+- `lobbyload` 3/7 and a guest crash. A co-op save loaded from the lobby: the lobby's server stayed open through the
+  host's load and the friend stayed connected on the main menu, but nothing sent it the campaign (`HostLoadedGame`
+  skips when a server is open). When the host quit, the friend's game ran the multiplayer lost-connection handling on
+  the main menu (`OnDestroyedOnlineGame` -> `ReturnToMPMainMenu`, reloading the menu map) and crashed during that
+  load (`XCom2.exe+0x4ce235`). Fixes: the host sends the campaign to the lobby's connected friends after the load, as
+  a join does; `CoopShellController` (overrides `XComShellController`) skips the game's handling for a co-op guest on
+  the main menu, as `CoopHeadquartersController` does on the Avenger. Not handled: a mid-mission save loaded from the
+  lobby.
+
+#### Long campaign with chunked sends and a fresh guest (`soakfresh16`, build 20261125-044926)
+
+16 missions in a row with `bChunkedWholeSend` and `bPartialResend` on; a third copy (C) joins fresh at about 80 min, when a
+whole send of the campaign would be well over the ~670 KB ceiling. 43/47, 121 min.
+
+- Chunked sends held up all the way: 36 sends of "chunked base + delta", none fell back to a whole send; bases of
+  662-765 KB went out in about 1,650-1,900 chunks in 0.3-0.6 s (7.8 s once, while the guest was loading).
+- The fresh guest took a 662 KB base in chunks, then the delta, and entered the Avenger (`mark fresh guest in`),
+  where a whole send of the same campaign would not have arrived.
+- Failed: B missed missions 15 and 16, and the fingerprints differ at the end (A ahead; B and C at mission 14). Cause,
+  from the logs: C joined just as the host reopened its server after mission 13 and was waiting for B. C said hello
+  first with no slot of its own and got slot 1, B's slot. B, coming back, was then put in slot 1 too ("partner
+  reconnected"). When C quit after its checks, the host counted slot 1 as gone and launched mission 15 with nobody;
+  B waited for a mission that never reached it.
+  Fix: a guest with no claim to a slot no longer gets a slot the host is waiting for after a mission build or the
+  return to the Avenger (`CoopRole.FreeGuestSlot(true)`, `CoopLink.SlotAwaited`); a guest asking for its slot (coming
+  back, or after a restart) still gets it.
+- One expectation was stale: with chunked sends on, the host logs "chunked base + delta", not "sent as a partial
+  history".
+
+#### Reruns on build 20261125-075853 (slot fix, lobby load, tutorial off)
+
+- 12 of 13 passed: `lobbyload` 8/8 (the friends in the lobby got the loaded campaign and entered the Avenger; no
+  crash when the host quit), `balanced3` 16/16 (squad 4/4/4), `join`, `join3`, `guestrestart`, `dropguest`,
+  `mission3` (the slot change), `lobbycamp`, `menushow`, `buttons` 15/15, `controltest` 17/17, `overwatchguest` 8/8.
+- `lobbynewreal` 7/10: the tutorial fix worked (`tutorial off`, the campaign was created as co-op), but the test's
+  host went on before the first mission was even loading (the new-campaign intro movie runs 150 s; the Gatecrasher
+  map loaded at 408 s) and quit at 449 s. The host now waits for the mission map (`@waittactical`).
+- `soakfresh16` again, 33/48. The new guest joined fine again (after mission 13), and no slot collision. But B lost
+  the host after mission 5 and never came back: on the main menu its first reconnect attempt timed out, and it never
+  tried again. Cause: last night's `CoopShellController` skips the game's lost-connection handling on the main menu;
+  that handling reloaded the map, which also dropped the failed attempt's connection. Without it
+  `HasClientConnection()` stayed true and the reconnect loop waits for it to be false. Fix: the controller asks
+  CoopLink to drop the dead connection on its next tick (`bTearDownPending`), and listens to network messages again
+  after that.
+- Content batch (27 scenarios): 24 passed, among them every Chosen, Avatar, Avenger defense, stronghold, story and
+  final-mission test, `soak`, `soakstory`, `joinsyncapply`. `vialguest` and `vialhost` failed the same check as on
+  2026-11-17 (the bot's forced vial pickup never sets the objective; known, `vialwalk` replaced them).
+  `lobbynewreal` failed again: the guest's log stops at its first reconnect attempt on the main menu (86 s), and a
+  crash dump from the guest names `tbbmalloc.dll` (the game's memory allocator). On the build before, the guest also
+  sat after that attempt without logging anything until the test timed out. Whether this is the reconnect bug above:
+  unknown until the rerun. `vialwalk` 17/18: out of time at turn 16 of 21; `run_batch.ps1` passes its own 1500 s limit, which
+  overrides the scenario's own (2400 s).
+
+#### Build 20261125-154749 (main-menu reconnect fix), stopped partway
+
+- `lobbyload` 8/8, `lobbynewreal` 10/10: a new campaign through the real difficulty screen (tutorial off), the
+  friend in the lobby reconnected after the first mission was built and loaded it as a watcher; no crash.
+- Not run yet on this build: `lobbyleave`, `soak`, `join3`, `soakfresh16` (the long run with the fresh guest),
+  `vialwalk` with its own time limit.

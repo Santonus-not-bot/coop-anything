@@ -4,19 +4,28 @@
 |---|---|
 | Engine | Unreal Engine 3 (UnrealScript, official mod SDK) |
 | Versions tested | Steam, XCOM 2 buildid 8270065 (changelist 699444), War of the Chosen + all DLC, Windows x64 |
-| Projects | Team Dragonpunk "Tactical Co-Op" (2016-17, abandoned); WOTC Co-op Campaign (this write-up): https://github.com/Santonus-not-bot/xcom2-wotc-coop-campaign, a fork of the strategy prototype https://github.com/EvilMask587/xcom2-wotc-coop-campaign, extended to missions and up to 4 players (2026-11) |
-| QA level | automated (two to four game copies on one PC, direct IP; see QA) |
-| Last updated | 2026-11-13 |
+| Projects | Team Dragonpunk "Tactical Co-Op" (2016-17, abandoned); WOTC Co-op Campaign: strategy prototype https://github.com/EvilMask587/xcom2-wotc-coop-campaign, extended to missions, up to 4 players and three co-op modes in a fork: https://github.com/Santonus-not-bot/xcom2-wotc-coop-campaign |
+| QA level | automated (two to four game copies on one PC, direct IP; three scenarios also on two PCs; see QA) |
+| Last updated | 2026-11-25 |
 
 ## Where things stand
 
-No one else can play it yet, but a full campaign loop runs in automated tests. Up to four
-players share one Avenger: the host makes the campaign decisions, and each guest manages the
-soldiers the host gives them. In missions each player moves their own soldiers in turn (host,
-then each guest, then the aliens) while the others watch. Saving and loading mid-mission,
-Ironman, disconnects and rejoins all work. Everything was tested only on one PC with direct IP.
-The mission code is not in a public repo yet, and two PCs, Steam invites and Steam mod
-subscription are untested.
+A full campaign loop runs in automated tests, and the main menu now has three co-op modes. Up to four players
+share one Avenger: the host makes the campaign decisions, and each guest manages the soldiers the host gives them.
+In missions each player moves their own soldiers in turn (host, then each guest, then the aliens) while the others
+watch. Saving and loading mid-mission, Ironman, disconnects and rejoins all work.
+
+- **Co-op Campaign:** the normal campaign, shared.
+- **Balanced Co-op Campaign:** the squad grows with the number of players (4 per player at the start, more with the
+  squad size upgrades), and every mission gets more and bigger enemy pods plus one enemy from a later stage of the
+  game. New campaigns only.
+- **Scenario Mode (first version):** one co-op mission without a campaign: 12 operators split among 2-4 players, with
+  ranks and gear set by the chosen stage (early, mid, late).
+
+Each mode opens a **lobby** where the host sees who is connected and decides who is player 2, 3 and 4 before
+starting. The code is public in the fork above (build and install instructions in its README). Tested on one PC
+with up to four game copies; three scenarios also passed on two PCs over direct IP. Steam invites and a
+real Steam Workshop subscription for a guest are untested.
 
 ## Existing work
 
@@ -71,11 +80,11 @@ subscription are untested.
 
 ## What we changed
 
-Mod: https://github.com/Santonus-not-bot/xcom2-wotc-coop-campaign (code only, no game files), a fork of
-the strategy prototype at https://github.com/EvilMask587/xcom2-wotc-coop-campaign. The campaign work below is in the
-fork (2026-11). Design, results
-per build and every decision: [DESIGN-campaign-coop.md](DESIGN-campaign-coop.md); every test run:
-[NOTES.md](NOTES.md).
+Mod: https://github.com/EvilMask587/xcom2-wotc-coop-campaign (code only, no game files) has the
+strategy prototype. The campaign and mission co-op below is public in the fork
+https://github.com/Santonus-not-bot/xcom2-wotc-coop-campaign; the modes, the menu and the lobby (2026-11-24/25) are
+not pushed yet. Design, results per build and every decision: [DESIGN-campaign-coop.md](DESIGN-campaign-coop.md);
+every test run: [NOTES.md](NOTES.md).
 
 **Strategy prototype (2026-10):**
 
@@ -156,6 +165,39 @@ per build and every decision: [DESIGN-campaign-coop.md](DESIGN-campaign-coop.md)
   A guest loads the mission "in replay" so it can watch, and the game turns visuals for new actions back on only
   for a single-player replay, never for a multiplayer one. The mod now turns them on when a guest takes its turn
   (found by `@pawns`, which compares each soldier's model with its game-state tile; `guestvis`).
+
+**Modes, main menu and lobby (2026-11-24/25):**
+
+- **Main menu.** "Co-op Campaign", "Balanced Co-op Campaign" and "Scenario Mode" sit in the game's own menu row after
+  New Campaign (the shell rebuilds its row at times of its own, so the mod checks twice a second). Soldiers from the
+  character pool (random ones when it is empty) stand in the menu's 3D scene, placed by a floor trace in front of the
+  camera. On backdrops without collision near the camera none are placed (`menushow` records the count).
+- **Lobby.** Each entry opens a lobby: host or join, a row per player with its connection state, and buttons for the
+  host to make a friend player 2, 3 or 4 (a swap of slots, sent to both guests). Starting a campaign goes through the
+  game's own difficulty or load screen with the friends still connected; the host then leaves for the first mission
+  and the friends rejoin it in their assigned slots (`lobbycamp`, `lobbyscen3`).
+- **Balanced Co-op Campaign.** The squad size and the enemies scale with the number of players. Squad: a hidden sitrep
+  per mission adds the normal squad size times (players - 1), so the squad size upgrades count. Enemies: the alert and
+  pod-size sitreps never reach the game's enemy picking, so the mod picks the enemies itself
+  (`CacheSelectedMissionData` at alert + 1 per extra player, one more unit of the pod's own kind per regular pod per
+  extra player, and one follower replaced by an enemy from 4 force levels later). New campaigns only; the choice is
+  locked after the first mission (`balanced`, `balancedsquad`). Squads above 6 need robojumper's Squad Select; the
+  runner adds it to the test copies for those scenarios.
+- **Scenario Mode, first version.** One co-op mission without a campaign, built the way Skirmish mode builds its start
+  state: 12 operators of the base classes, ranks and gear by stage (force 3 / 9 / 16, alert 2 / 3 / 4, rank 2 / 4 / 6;
+  conventional + Kevlar / magnetic + Predator / beam + Warden), split among the players. The first turn waits until
+  every expected player has loaded the map (a guest that joined after the turn began lost it, found by `scenario`).
+  At the end the guests go back to the main menu (`scenarioend`). The points shop, saved operators and objective sets
+  in the design are not built yet.
+- **Host activity in squad select.** The player panel says "Selecting the squad" while the host is in squad select or
+  the mission screen before it.
+- **Chunked history (no size ceiling).** A whole-history send stops arriving above about 670 KB (see Known issues).
+  The engine's `SendRemoteCommand` carries at most one network bunch, but 400-byte chunks with a window of acks arrive
+  intact (`chunktest`: a 359 KB campaign history in 898 chunks, byte for byte the history the guest got from a
+  normal join). With `bChunkedWholeSend` on, every
+  whole send (a join, a mission, the campaign after a mission) goes out as the host's history base in chunks; each guest
+  takes it as its own base, and the engine's partial history brings it up to date. A send that stalls falls back to the
+  engine's whole send after 90 s. Off by default until the long-campaign test passes.
 
 ## QA
 
@@ -241,7 +283,8 @@ and test instructions are in the mod repo README.
 - While the host has any edit screen open (the Geoscape included), a guest waits to edit
   its own soldiers.
 - Other mods that replace `UIUnitFlag` conflict with the owner tags, and mods that replace
-  `XComHeadquartersController` with the guest's Avenger exit. robojumper's squad
+  `XComHeadquartersController` or `XComShellController` with the guest's handling of a lost host (on the
+  Avenger, on the main menu). robojumper's squad
   select screen has not been tested with the slot buttons.
 - Test copies show the game's own debug "red screens", still with Steam's `-noRedScreens -review` added; every
   message is from the base game (maps, DLC sounds), none from the mod. Whether a plain Steam launch shows them: unknown.
@@ -251,8 +294,12 @@ and test instructions are in the mod repo README.
   Whole-history sends up to 661 KB arrive; from 685 KB they never do (16-mission test: around mission 14).
   Compacting the history with the game's `ArchiveHistory` crashed the host. Workaround, tested but off by default:
   `bPartialResend=true` sends a returning guest only the frames it lacks; in a 16-mission test the guest played
-  every mission with histories up to 757 KB (`soakpartial16`, 41/41). Untested with it: more than sixteen
-  missions, two PCs.
+  every mission with histories up to 757 KB (`soakpartial16`, 41/41). A second fix, also off by default:
+  `CoopChunks.bChunkedWholeSend=true` sends the host's history in 400-byte chunks and then a delta, with no size
+  limit. In a 16-mission test (`soakfresh16`, 2026-11-25) every one of 36 sends went that way (bases up to 765 KB
+  in about 0.4 s), and a new guest joined after mission 13 and entered the Avenger. That run found a slot bug (the
+  new guest took the slot of a guest coming back), fixed; see QA for the rerun. Untested with either fix: more than
+  sixteen missions, two PCs.
 - Story moments: one tested (a guest takes the Blacksite vial; both machines play the cinematic and agree).
   Other story objectives and a whole campaign are untested.
 - A rare guest crash as its turn begins (`XCom2.exe+0xb158a7`, 2 of many runs; not reproduced in 14 runs of the
@@ -267,6 +314,11 @@ and test instructions are in the mod repo README.
   repair but are untested.
 - The host sends nothing while it plays a long movie (98 s after the first mission). Guests time out
   after 60 s and come back by themselves through the main menu (checked in `soak`).
+- The lobby's "Load" handles a save made on the Avenger (the friends in the lobby get the campaign); a save made
+  inside a mission is not handled.
+- A new co-op campaign starts without the tutorial: with the tutorial the game loads the tutorial's own save and
+  builds the campaign only after that mission, so it could not become co-op. The mod unticks and locks the box.
+- The main menu's 3D scene shows no soldiers on some of the game's menu backdrops (seen, cause not looked into).
 - The host crashed once in the game's sound engine (the same Wwise race the guest fix covers) when
   the test bot launched a mission straight from the Avenger; the bot now pauses for a second first.
   Whether a player's normal launch, after the Skyranger flight, can hit it is unknown.
@@ -276,8 +328,9 @@ and test instructions are in the mod repo README.
 - Publish the campaign code (a fork or a PR to the prototype's repo).
 - Two PCs: direct IP, then Steam invites; auto-subscribe a guest to the host's mods.
 - Play a whole campaign.
-- Two more modes on the co-op menu, after the co-op campaign works on two PCs: a **balanced co-op
-  campaign** (4-6 soldiers per player, enemies scaled to the number of players) and a **scenario mode** (single
-  co-op missions without a campaign: 12 operators split among 1-4 players, gear tier set by the game stage,
-  abilities, stats, special suits and hero classes bought with points, several objectives to split up for).
-  Plan and open questions in [DESIGN-campaign-coop.md](DESIGN-campaign-coop.md#game-modes-decided-2026-11-13-scenario-mode-replaced-horde-defense-2026-11-16).
+- Decide whether chunked history sends become the default, after a test on two PCs.
+- The modes on two PCs: the lobby, the balanced campaign and scenario mode are tested on one PC only.
+- Scenario mode: points to spend on abilities, stats, special suits and hero classes, and several objectives to
+  split up for, are still to do. Plan and open questions in
+  [DESIGN-campaign-coop.md](DESIGN-campaign-coop.md#game-modes-decided-2026-11-13-scenario-mode-replaced-horde-defense-2026-11-16).
+- Loading a mid-mission save from the lobby.
