@@ -2467,7 +2467,7 @@ whole send of the campaign would be well over the ~670 KB ceiling. 43/47, 121 mi
   `HasClientConnection()` stayed true and the reconnect loop waits for it to be false. Fix: the controller asks
   CoopLink to drop the dead connection on its next tick (`bTearDownPending`), and listens to network messages again
   after that.
-- Content batch (27 scenarios): 24 passed, among them every Chosen, Avatar, Avenger defense, stronghold, story and
+- Content batch (27 scenarios): 23 passed, among them every Chosen, Avatar, Avenger defense, stronghold, story and
   final-mission test, `soak`, `soakstory`, `joinsyncapply`. `vialguest` and `vialhost` failed the same check as on
   2026-11-17 (the bot's forced vial pickup never sets the objective; known, `vialwalk` replaced them).
   `lobbynewreal` failed again: the guest's log stops at its first reconnect attempt on the main menu (86 s), and a
