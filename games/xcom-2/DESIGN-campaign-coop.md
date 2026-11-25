@@ -269,19 +269,29 @@ The co-op menu offers three modes. The host picks one; guests join whatever the 
 |---|---|---|
 | **Co-op campaign** | The regular campaign, unchanged in balance, shared by up to 4 players: everything in the table above. The "Host co-op" button can also turn an existing single-player campaign into a co-op one (it adds the co-op data). | Built; tested on one PC (see results below). The mode picker in the menu is not built yet. |
 | **Co-op balanced campaign** | A campaign tuned for co-op: **4-6 soldiers per player**, and **enemies scaled to the number of players**. More changes to be decided later. | Planned. Starts after the co-op campaign works on two PCs. |
-| **Scenario mode** | Single co-op missions without a campaign: pick a game stage, build operators from a point budget, play a mission with several objectives that pull the squad apart. See below. | Planned (replaced horde defense, 2026-11-16). Starts after the balanced campaign. |
+| **Scenario mode** | Single co-op missions without a campaign: pick a game stage, build operators from a point budget, play a mission with several objectives that pull the squad apart. See below. | First version built and bot-tested on one PC (2026-11-24, `CoopScenario`): stage, player count, 12 operators split evenly with the stage's rank and gear tier, a standard mission, join from the main menu, back to the main menu at the end. Not yet: point budget, objective sets, saved operators, modifiers. |
 
 Order of work: finish the co-op campaign first (two PCs, Steam, content coverage), since both other modes
 reuse its join, turns, ownership and saves.
 
-Open questions for the balanced campaign (for the owner to decide later):
+Decided for the balanced campaign (owner, 2026-11-24):
 
-- Whether "4-6 soldiers per player" is a fixed number set by the host, a choice per player, or grows
-  with the game's squad size upgrades.
-- How enemies scale: more pods, bigger pods, stronger enemies, or a mix; and whether it changes when a
-  player drops mid-mission.
-- Whether the mode is picked at campaign start only (new game) or can be switched on an existing campaign.
+- **Soldiers per player grow with the squad size upgrades:** 4 per player at the start, 5 and 6 with the
+  Guerrilla Tactics School unlocks (the base game's 4 -> 6, per player).
+- **Enemies:** one enemy per mission may come from a slightly later game stage, plus a mix of more pods and
+  bigger pods as players are added.
+- **Picked when a new campaign starts** (not switchable on an existing campaign).
+- **The one stronger enemy comes from 4 force levels higher** (owner, 2026-11-24; at +2 an early campaign only
+  rolled early units such as ADVENT Captains).
+- Order: the balanced campaign comes before the scenario mode.
+
+Still open for the balanced campaign:
+
+- How many more and bigger pods per added player (placeholders: +1 alert level and +1 follower per pod per extra
+  player).
+- Whether the scaling changes when a player drops mid-mission.
 - Which other changes come with it (economy, recruits, Avenger build times, Chosen).
+- Squad select with more than 6 soldiers (see below): one shared screen, or each player picks their own soldiers.
 
 What has to be checked before building it (guesses, not checked in the game or the SDK yet):
 
@@ -304,6 +314,25 @@ effect templates, which a mod can add to every mission of the balanced campaign 
   the mission schedules; unchecked how much), `X2SitRepEffect_ModifyXComSpawn`.
 - The bot scenario `bigsquad` puts 12 soldiers (6 per player) into a mission by filling the HQ squad directly,
   past squad select; results under "Game content".
+
+Found in the SDK source and the game's config (2026-11-24, read only, not run):
+
+- Squad size: `X2StrategyGameRulesetDataStructures.GetMaxSoldiersAllowedOnMission` starts from
+  `m_iMaxSoldiersOnMission` (4), adds one for each of `SquadSizeIUnlock` and `SquadSizeIIUnlock`, then applies the
+  mission's `X2SitRepEffect_SquadSize` effects. A balanced campaign can multiply that by the player count with a
+  sitrep effect (`SquadSizeAdjustment`) or by changing the number before squad select reads it.
+- **The vanilla squad select draws at most 6 slots** (`UISquadSelect.MaxDisplayedSlots=6` in `XComUI.ini`;
+  `UISquadSelect.uc:177` caps the slot count). Two players already need 8-12 slots, four players 16-24. Options:
+  robojumper's squad select (a Workshop mod that draws any number; the co-op slot buttons already support it,
+  untested), or a squad select of our own where each player fills their own 4-6 slots (fits the co-op layer:
+  guests already own their soldiers).
+- Sitreps on a mission are names in `XComGameState_MissionSite.GeneratedMission.SitReps` (Skirmish mode fills them
+  directly: `UITLE_SkirmishModeMenu.uc:321`). Mod hooks: `X2DownloadableContentInfo.ShouldUpdateMissionSpawningInfo`
+  / `UpdateMissionSpawningInfo` (called when the Geoscape shows mission blades). Unknown: whether adding a sitrep
+  there re-rolls the encounters, and how to keep such a sitrep out of the mission's sitrep list on screen.
+- "One enemy from a later stage" has no sitrep effect: `ModifyForceLevel` raises the whole mission. It needs one
+  unit of a pod swapped for a template from a higher force level after the encounters are picked (where the
+  encounter list can be changed by a mod: not found yet).
 
 #### Scenario mode (decided 2026-11-16, replaces horde defense)
 

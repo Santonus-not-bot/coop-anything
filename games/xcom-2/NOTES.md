@@ -2158,3 +2158,222 @@ Findings, in order:
 Later (tester): make sure guests cannot edit soldiers that are not assigned to them (the edit screens already refuse
 another player's or an unassigned soldier; to be checked on two PCs).
 
+#### Whole histories in chunks (`chunktest`, 2026-11-24)
+
+Why: partial resends (above) only help a guest that already holds a history to take a delta against. A new player
+joining a long campaign, or a guest that restarted its game, still needs a whole send, which never arrives above about
+670 KB. Idea: send the host's encoded history in small remote commands and hand it to the engine on the guest.
+
+What the SDK offers (read only): `XComGameStateNetworkManager.ReceiveHistory(int ConnectionIdx, array<byte> Raw)` is
+callable from script; `BaseHistoryData` (script-visible) holds the encoded history last sent or received.
+
+Built (experiment, not used in normal play): `CoopChunks` sends a byte array as `CoopChunkBegin`(id, bytes, count, hash,
+mode, chunk size), `CoopChunk`(id, index) + bytes, at most `ChunkWindow` chunks ahead of the slowest guest's
+`CoopChunkAck`; the guest checks the size and an FNV-1a hash, then compares with its own base (`@chunkbase`) or calls
+`ReceiveHistory(0, bytes)` and answers `CoopChunkDone` (`@chunkfeed`); the host then sends `CoopEnterAvenger`.
+Scenario `chunktest` (one PC, two copies, a new campaign of about 360 KB).
+
+Run 1 (16 KB chunks, window 8): 5/11. Observed: the first `CoopChunk` closed the connection on the host
+(`Error: XCom channel bunch overflowed`); the guest reconnected and got the campaign the usual way. Derived: a remote
+command must fit in one bunch of the game's channel; the engine splits its own history sends, not remote commands.
+In the same run, `@chunkpause` called `SendHistory` with `SetPauseGameStateSending(true)`: the engine still logged
+"Wrote entire history to network queue" and the guest received that history about 7 s later. Derived: pausing does
+not keep a history send off the network.
+
+Run 2 (400-byte chunks, window 32): 11/11. Observed:
+- 358,817 bytes in 898 chunks, every chunk acknowledged after 0.38 s (0.07 s the second time); hash matched;
+- the bytes were identical to the guest's own `BaseHistoryData` from its normal join (`identical=True firstdiff=-1`);
+- `ReceiveHistory` with them raised the engine's normal receive (`event ReceiveHistory frames=226`), set the guest's
+  base to the same bytes, and the guest entered the Avenger from that history on `CoopEnterAvenger`;
+- same campaign fingerprint on both copies at the end; real install and saves unchanged.
+
+Run 3 (adds `@chunkprime` before any guest connects): 12/12. Observed: with no connection, `SendHistory` filled the
+host's `BaseHistoryData` (0 -> 363,792 bytes) and sent nothing. The base after the join's real send was 28 bytes
+shorter with the same 225 frames (unknown why; the history encoding is not fully deterministic or something changed).
+
+Derived: the host can produce its encoded history without the engine's oversized send (before anyone connects, or
+the base kept from its last send), and a guest can receive it in chunks of any total size and use it as a whole
+history. Unknown: chunk sizes between 400 bytes and 16 KB (the largest that fits a bunch); timing between two PCs and
+over Steam; histories above 670 KB (the case this is for: not run yet).
+
+Plan (not built): for a whole send, the host sends its current base in chunks, the guest stores it as its own base
+(as `RestoreBase` does), then the host sends the usual partial history (`CoopNextIsWhole` + `SendPartialHistory`),
+a small delta from that base to now; guests already connected hold the same base, since every send goes to all of
+them. The host primes its base with `SendHistory` while nobody is connected (after opening the server or loading a
+save) and keeps it with `KeepBase`. Then the long-campaign test again: `soakstory16` with a guest joining fresh at
+mission 16.
+
+#### Host activity in squad select (2026-11-24)
+
+Playtest logs of 2026-11-19 showed "Reading an alert" for about 2 s before "Picking the squad": the mission screen
+before squad select (`UIMission_*`, not a `UIAlert`) had no line in `CoopActivity`, so a `UIAlert` lower in the screen
+stack matched (derived; the stack was not logged). Now: `UIMission` shows "Looking at a mission", and squad select
+shows "Selecting the squad" for as long as it is anywhere in the stack (a soldier's Armory screens opened from squad
+select no longer switch it to "In the Armory"). `squadshow` now also expects that line on the host and in the guest's
+player panel. Compiled; not run in the game yet.
+
+#### Balanced co-op campaign, first build (`balanced`, 2026-11-24)
+
+Built: `XComGameState_CoopCampaign.bBalanced` (set by the host before the first mission only; refused once the
+campaign's analytics count a battle), hidden sitreps `CoopSquadN` / `CoopPodsP_A` (`bExcludeFromStrategy`: never
+rolled at random, not listed on screen) with effects `CoopSquadPlusN` (squad size), `CoopPodPlusN` (pod size),
+`CoopAlertPlusN` (alert level); `CoopBalanced.ApplyToMission` puts them on a mission when the host opens it
+(`UIScreenListener_CoopBalanced` on `UIMission`; bot step `@balanceapply`), re-picks the enemies, and swaps one pod's
+leader for one rolled two force levels higher. Settings per extra player in `[CoopBalanced]` (placeholders).
+
+Scenario `balanced` (two copies, two players, 8 soldiers): 15/15 twice. Observed:
+- squad: `base squad=4 max squad=8` with `CoopSquad4`; the mission launched with 8 soldiers, 4 owned by each
+  player on both machines;
+- applying again to the same mission changed nothing (`already set`);
+- the enemies on the map were exactly the cached list (7 of 7, the swapped leader included): changing
+  `SelectedMissionData` before launch changes what spawns;
+- **the enemy sitreps had no effect.** Second run, baseline picked without them: alert 2, 4 pods, 7 units; with
+  `CoopPods1_1`: alert 2, 4 pods, 7 units, pods of the same size. From the SDK: `GetMissionDifficulty` does not add
+  sitrep difficulty modifiers (`GetMissionDifficultySitrepModifier` is a "TODO @design" helper nobody calls), so an
+  alert sitrep never reaches `CacheSelectedMissionData`; the pod size effect is read in native code (unknown where;
+  not in the encounter picking seen here).
+- the "later enemy" swap is not later in practice: Sectoid -> ADVENT Captain (run 1), General -> General (run 2).
+
+Next (not built): pass a raised alert level to `CacheSelectedMissionData(ForceLevel, AlertLevel + N)` directly and
+keep it when the Geoscape refreshes the mission (it re-picks when the level differs); add units to each cached pod in
+script (followers of the pod's own kind); pick the later enemy from units whose earliest force level is above the
+mission's. Squad select above 6 slots needs robojumper's squad select in the test copies (not installed here).
+
+Squad select with robojumper's squad select (`balancedsquad`, 2026-11-24): the runner copies the Workshop download of
+robojumper's Squad Select (`robojumperSquadSelect_WotC`, no required mods) into both test copies for scenarios with
+`rjss=$true` and adds it to their mod list (the real install's list is not touched). 8/8. Observed: on a balanced
+mission for two players the screen was `robojumper_UISquadSelect` with `slots=8 max=8`; the bot filled it to 8; the
+guest received the host's squad view; no crash; real install and saves unchanged. Also logged when the bot opened the
+screen: `Accessed None 'XCOMHQ'` in `UISquadSelect.CreatePendingStates` (4 times) and a red screen "ModifyStateObject
+called with a specified ObjectID of '0'". Unknown whether that comes from robojumper's screen or from the bot opening
+squad select directly (`@squadselect`, not through the mission screen); `squadshow` (vanilla screen) not run on this
+PC to compare. The co-op slot buttons on robojumper's screen and the screen's look with 8-24 slots are not checked
+(screenshots not reviewed).
+
+Enemy scaling in script (2026-11-24, second build): `ApplyToMission` now picks the enemies itself:
+`CacheSelectedMissionData(ForceLevel, normal alert + AlertPerPlayer per extra player)`; then every regular pod (alien
+team, no strategy unit tag, at least 2 units) gets `PodsPerPlayer` more of its own last unit; then one follower is
+replaced by the first unit type not yet in the mission, rolled from a regular pod `LaterEnemyForceLevel` force levels
+higher (up to 12 rolls). The squad size stays a hidden sitrep; the alert sitrep stays too (it raises the battle's
+alert level in tactical, which reinforcements read); the pod size sitrep is gone. It runs on the mission screen and
+again on squad select ("already set" when the cached alert and force level are still the balanced ones, so it does not
+re-roll). Placeholders: `PodsPerPlayer=1`, `AlertPerPlayer=1`, `LaterEnemyForceLevel=2`.
+
+`balanced` (2 players, force level 1): 15/15. Observed: normal alert 2: 3 pods, 6 units (`Guerilla_D2_ProtectDevice`);
+balanced alert 3: 3 pods, 11 units (`Guerilla_D3_ProtectDevice`, larger pods, then +1 each); the later enemy was
+`AdvTrooperM1 -> AdvCaptainM1` (force level 3); the map had exactly those 11 aliens; same unit lists on the second
+`@aliens` a turn later. `balancedsquad`: 9/9, squad select logged `already set` and robojumper's screen still showed 8
+slots.
+
+Derived: changes to the cached list reach the map unchanged, extra followers included. The higher alert gave larger
+pods, not more pods, on this mission type (same pod count at D2 and D3). Two force levels above force level 1 still
+only reach early units (Captain, Trooper, Sectoid): the "later enemy" is not later in an early campaign. Unknown: the
+real mission screen path (the bot opens squad select without it; whether UIMission re-picks before or after the
+listener, and so re-rolls on every visit), the Shadow Chamber's enemy list (not updated by this), 3-4 players,
+later force levels, reinforcements at the raised alert.
+
+Later enemy at +4 force levels (owner's decision, 2026-11-24; `LaterEnemyForceLevel=4`): `balanced` 15/15. Observed
+(force level 1): normal alert 2: 3 pods, 6 units; balanced alert 3: 3 pods, 11 units; the later enemy was
+`AdvTrooperM1 -> AdvPurifierM1` (rolled at force level 5, first try), and the Purifier was on the map with the other
+10 aliens on both `@aliens` checks. Real install and saves unchanged.
+
+#### Main menu: Co-op Campaign, Scenario Mode, soldiers in the scene (`menushow`, 2026-11-24)
+
+Built: `CoopShellWatch` puts "Co-op Campaign" and a disabled "Scenario Mode" ("Coming soon") into the game's own
+menu row right after "New Campaign" and re-adds them when the shell rebuilds its row (`UIFinalShell.UpdateMenu` runs
+again after the save list loads and on login changes); the old separate "Join co-op" button is gone (the status line
+stays). "Co-op Campaign" opens `CoopCampaignMenu`: new co-op campaign, new balanced co-op campaign, load a co-op
+campaign, join a friend, back. A new campaign from there goes through the game's difficulty screen; `InstallNewCampaign`
+puts the co-op data (balanced or not) into the new campaign's start state, and the first arrival on the Avenger opens
+the server as "Host co-op" does (a new campaign starts with its first mission, played before guests can join).
+`CoopShellScene`: up to 4 character pool soldiers (random soldiers made for the scene only when the pool is empty;
+the pool is never changed) stand in front of the menu camera with their backs to it, on the floor found by a trace
+(the planned spot, then nearer and farther ones), holding a weapon from a temporary loadout and playing their
+personality's idle, as the character pool screen does.
+
+`menushow` (one copy; the test copies start in the developer menu, `@finalshell` opens the War of the Chosen menu):
+6/6 on the last run. Observed: developer menu row `TACTICAL | Strategy | CoopCampaign | CoopScenario | TLE | ...`;
+War of the Chosen row `SP | CoopCampaign | CoopScenario | Load | TLE | Options | CharacterPool | Exit`; 4 of 4 soldiers
+placed and idling in both menus; the submenu opened with 5 choices; screenshots `local/screenshots/menu-coop-example.png`
+and `menu-coop-submenu.png`. Earlier runs: the downward trace found no floor in some scenes (the scene's meshes do not
+all block traces: 0 of 4, then 2 of 4) before the spot search; the first pawns stood in a T-pose and too low before the
+idle and the collision-height offset. The menu scene changes per launch (seen: `XPACK_Shell_Chosen`,
+`XComShell_Slums_Night`, `TLP_Shell_Docks`), so where the soldiers stand differs per scene and can overlap scene props.
+Not done: a new scene of our own (a new environment needs a map built in the SDK's editor); clicking through the
+submenu's choices in a test (new campaign to Avenger hosting, load, join); a real character pool (the test copies
+have none).
+
+#### Scenario mode, first version (`scenario`, `scenarioend`, 2026-11-24)
+
+Built (`CoopScenario`, `CoopScenarioMenu`): the main menu's "Scenario Mode" opens a screen with the number of players
+(2-4) and three starts (early, mid, late game). Starting builds a tactical-only mission the way War of the Chosen's
+Skirmish mode does (`UITLE_SkirmishModeMenu`: a new history with a battle, players, headquarters, a mission site in a
+random region; a mission type from Skirmish mode's list with a valid map) and travels to it. The stage sets (config,
+`[CoopScenario]`): force level 3 / 9 / 16, alert 2 / 3 / 4, operator rank 2 / 4 / 6 (abilities picked by the challenge
+modes' `RankUpSoldier`), gear by the challenge selectors (conventional + Kevlar / magnetic + Predator / beam + Warden),
+utility items by `ChallengeStandardUtilityItems`; enemies by `ChallengeStandardSchedule`. Squad: 12 operators of the
+base classes (`ChallengeSoldiers_RandomVanilla`), split among the players in blocks (owner tags). The start state
+carries the co-op data (`XComGameState_CoopCampaign.bScenario`), so the co-op rules, groups and turns run as in the
+campaign; the expected guest slots are set at the start, so the groups are split at begin play and the mission goes
+out once everyone is in. The host opens the server at its first unit actions, and the first turn waits (up to
+`WaitForPlayersSeconds`, 180) until every expected player has the mission and has finished loading its map. Friends
+join with "Co-op Campaign" > "Join a friend". At the end the host sends "CoopScenarioOver" and the guests go back to
+the main menu; the host takes the game's own skirmish path.
+
+Results (one PC, two copies; real install and saves unchanged after every run):
+- `scenario` (early, 2 players): 14/14 on the first run, where the guest happened to join before the host's first
+  turn. Second run 13/14: the guest joined after the first turn had begun, lost that turn (its soldiers moved to its
+  group only at the next XCom turn) and the host's script quit before the guest's next turn. Fixed by the expected slots
+  and the first-turn wait; third run 15/15: the first turn waited 38 s, then the guest played its own first turn with
+  its own 6 operators.
+- `scenarioend` (late, 2 players): 9/9 after one fix. Observed: force 16, alert 4, rank 6, beam weapons; the host ended
+  the battle; the guest got "scenario over" and was back on the main menu. Fix: the late operators wore Kevlar; the
+  squaddie rank-up equips the class loadout and the challenge armor selectors only add armor, so the old armor is
+  removed first (as Skirmish mode's armor change does); then all 12 wore `MediumPoweredArmor`.
+- `menushow`: the Scenario Mode screen opens (screenshot `local/screenshots/scenario-menu.png`; mission
+  `scenario-mission-host.png`). On the backdrop `XPACK_Shell_Xenoform` no menu soldiers were placed (no floor that
+  blocks traces near the camera); the test now records the count.
+Regression after the ruleset changes: `missionend` 11/11, `mission` 54/54.
+
+Not in this version (design decided, numbers open): the point budget and operator shop, objective sets, saved
+operators, difficulty modifiers. Not tested: mid game, 3-4 players (copies 2 and 3 are not set up on this PC), two
+PCs, the host's own skirmish summary screen (the bot ended the battle with the console command), a guest leaving and
+coming back during a scenario.
+
+#### Lobby on the main menu (`lobbyscen3`, `lobbycamp`, 2026-11-24)
+
+Built: the menu row has "Co-op Campaign", "Balanced Co-op Campaign" and "Scenario Mode" (the "Co-op Campaign" submenu
+and the scenario screen are gone); each opens the lobby (`CoopLobbyScreen`, `CoopLobby`). In it a player hosts (the
+server opens on the main menu) or joins a friend (address dialog). Everyone sees Player 1-4 with name and state (the
+roster, `CoopRoster`, now also runs for a host in a lobby). The host has a "Make player N" button on each guest's row:
+it moves that guest to slot N, swapping with a guest already there, through the existing join handshake
+(`CoopSlotFor` with the guest's nonce; the guest's reconnect slot and memory follow). The host sends "CoopLobby"(mode)
+every 3 s: guests show the lobby and keep their no-history watchdog quiet. Starts: new campaign (the game's difficulty
+screen, opened over the lobby so backing out returns to it) and load (campaign lobbies); early / mid / late game
+(scenario lobby, players = the highest guest slot + 1). On a start the host sends "CoopMissionBuilding" (the guests'
+loading screen), closes the connection for the map travel and reopens it at the first unit actions; for a new campaign
+that starts on the Avenger (no first mission) the Avenger opens it. Guests reconnect in their lobby slots. "Close
+lobby" tells the guests ("CoopLobbyClosed").
+
+Fix found by the tests: a guest in the lobby did not reconnect after the host left to start the game (`GuestLostHost`
+returned early without co-op campaign data, which a guest on the main menu does not have yet); it now also reconnects
+when its host was in a lobby.
+
+Results (one PC, test copies; real install and saves unchanged after every run):
+- `lobbyscen3` (three copies): 27/27 on the third run. The host opened the scenario lobby; two friends joined as
+  players 2 and 3; the host swapped them; each guest's lobby showed its new slot ("(you)"); the host started an early
+  scenario for 3 players (4 operators each); both guests reconnected in their new slots, loaded the mission, the first
+  turn waited for them, each played its own turn with its own 4 operators. Earlier runs: 19/27 (the guests did not
+  reconnect: the fix above), 26/27 (a guest's lobby check ran before the swap reached it: test timing; the bot now has
+  `@waitslot N`).
+- `lobbycamp` (two copies): 12/12 on the last run. The host opened the balanced lobby, a friend joined, the host started a new
+  campaign (the bot's quick start, no first mission); the campaign was created as co-op and balanced; the friend
+  reconnected as player 2 and entered the Avenger with the campaign. The guest's lobby title stayed "CO-OP" (the
+  header's Flash clip ignores a later setText); it is now rebuilt with the host's mode (screenshot
+  `lobby-guest.png`).
+- `menushow`: 5/5 with the three buttons. Screenshots: `local/screenshots/menu-lobby-buttons.png`,
+  `lobby-host-before.png`, `lobby-host-after-swap.png`.
+
+Not tested: a new campaign through the real difficulty screen and its first mission with guests (the bot's quick start
+skips it), loading a co-op save from the lobby, a guest leaving the lobby and the host closing it, two PCs.
+
