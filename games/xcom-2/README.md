@@ -195,9 +195,10 @@ every test run: [NOTES.md](NOTES.md).
   The engine's `SendRemoteCommand` carries at most one network bunch, but 400-byte chunks with a window of acks arrive
   intact (`chunktest`: a 359 KB campaign history in 898 chunks, byte for byte the history the guest got from a
   normal join). With `bChunkedWholeSend` on, every
-  whole send (a join, a mission, the campaign after a mission) goes out as the host's history base in chunks; each guest
-  takes it as its own base, and the engine's partial history brings it up to date. A send that stalls falls back to the
-  engine's whole send after 90 s. Off by default until the long-campaign test passes.
+  whole send (a join, a mission, the campaign after a mission, the relay of a guest's turn) goes out as the host's
+  history base in chunks; each guest takes it as its own base, and the engine's partial history brings it up to date.
+  A send that stalls falls back to the engine's whole send after 90 s, which cannot arrive above the ceiling either.
+  The long-campaign test with three players (`soakfresh16`) now passes; still off by default until a two-PC test.
 
 ## QA
 
