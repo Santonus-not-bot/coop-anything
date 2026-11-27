@@ -271,7 +271,7 @@ every test run: [NOTES.md](NOTES.md).
   | `balanced`, `balancedsquad`, `balanced3` | 2, 2, 3 | balanced campaign: squad size per player, scaled enemies; 8 slots with robojumper's squad select; three players | 15/15, 9/9, 16/16 | 11-25 |
   | `scenario`, `scenarioend`, `scenariomid` | 2 | scenario mode: early stage; the end, back to the menu; mid stage (force level, rank, magnetic weapons) | 15/15, 9/9, 16/16 | 11-25 |
   | `chunktest`, `joinchunk`, `missionchunk` | 2 | chunked history sends: the format check; a join; a mission and its end, chunked only | 12/12, 10/10, 14/14 | 11-25 |
-  | `soakfresh16` | 3 | sixteen missions with chunked sends; a new guest joins after mission 13 | 47/48 (48/48 with the fixed check, see NOTES.md) | 11-27 |
+  | `soakfresh16` | 3 | sixteen missions with chunked sends; a new guest joins after mission 13 | 48/48 | 11-27 |
   | `mission3chunk` | 3 | mission3 with chunked sends: the mission send and every relay of a guest's turn go in chunks | 22/22 | 11-27 |
 
 - Two-PC test kit (not published): the runner can run the host alone and grade a guest log from another PC;

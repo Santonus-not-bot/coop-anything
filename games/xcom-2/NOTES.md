@@ -2582,3 +2582,4 @@ whole send of the campaign would be well over the ~670 KB ceiling. 43/47, 121 mi
   - Runner fix: a copy listed in `fphad` (C in `soakfresh16`) must end with a fingerprint the host had: its `@histinfo`
     at the same frame count, or else one it sent in a campaign batch. Rechecked on the kept logs: 48/48. A copy of C's
     log with one supply value changed fails the check, as it should.
+  - A fresh run with the fixed check on the same build: 48/48 in 110 min, all 16 missions, the real install unchanged.
