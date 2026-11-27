@@ -206,59 +206,72 @@ every test run: [NOTES.md](NOTES.md).
   copies, asserts on every copy's log (expected lines, no crash, no desync, equal campaign
   fingerprints) and checks afterwards that the real install and saves are unchanged. The
   runner scripts are not published yet. The copies also take screenshots, checked by eye.
-- Last results (2026-11-13 to 2026-11-18). Each row is the latest run of that scenario; the
-  scenarios after `avdefreinf` are new content tests. On 2026-11-16 every scenario but the 8-mission soak ran
-  in one batch on the same build: 38 of 40 passed; both failures were fixed and passed when rerun
-  (`chosenassault`, a mod bug; `guestaction3`, a test setup gap). The real install was unchanged in every run.
-  After the guest-visuals fix (2026-11-18) these passed again on the new build: `mission`, `guestaction`,
-  `overwatchguest`, `stunguest`, `dazeguest`, `corruptguest`, `mindcontrol`, `aiturnguest`, `missionend`, `joinxcom`,
-  `vialwalk`.
+- Last results. "11-27" rows ran on 2026-11-27 on the latest build; "11-25" rows ran on 2026-11-25, on the builds with the main menu, the lobby, the modes and
+  chunked sends (the full regression and every content test ran that day; failures were fixed and rerun, see
+  NOTES.md); "earlier" rows are from 2026-11-13 to 2026-11-18 and were not rerun. The real install was unchanged in
+  every run.
 
-  | Scenario | Players | What it covers | Result |
-  |---|---|---|---|
-  | `squad`, `exp12` | 2 | ownership tags, squad slot rules, group split | 13/13, 11/11 |
-  | `join`, `joinmismatch` | 2 | join with matching mods, refusal on a mismatch | 7/7, 5/5 |
-  | `join3` | 3 | two guests join one host | 12/12 |
-  | `buttons` | 2 | "Host co-op" / "Join co-op" buttons | 14/14 |
-  | `features` | 2 | Owner and slot buttons, guest rights, chat | 20/20 |
-  | `guestrestart` | 3 | both guests restart, get their slots back | 19/19 |
-  | `mission` | 2 | full rounds with enemies, pings, chat, camera, flags, banner | 54/54 |
-  | `dropguest` | 2 | guest killed in its turn, host takes over, guest rejoins | 15/15 |
-  | `missionend` | 2 | mission end and return to the Avenger | 11/11 |
-  | `mission3`, `mission4` | 3, 4 | guest-to-guest handover through the host | 27/27, 33/33 |
-  | `ironman` | 2 | Ironman autosave, load, rejoin | 18/18 |
-  | `saveload` | 2 | save, load, second mission | 18/18 (twice) |
-  | `midsave` | 2 | save inside a mission, load, rejoin | 16/16 (four times) |
-  | `mindcontrol`, `mcall` | 2 | mind control of and by a guest's soldiers, freeing them | 24/24, 16/16 |
-  | `lostchosen` | 2 | the Lost; a Chosen kidnaps a guest's soldier, mission end | 21/21 |
-  | `retaliation`, `blacksite` | 2 | Chosen retaliation (resistance, civilians); a story mission | 14/14, 14/14 |
-  | `avengerdefense`, `avdefreinf` | 2 | Avenger defense; its reinforcements go to their owner | 15/15, 15/15 |
-  | `flankcrit` | 2 | flank crits use the single-player bonus (shot breakdown, host and guest) | 10/10 |
-  | `bigsquad` | 2 | 12 soldiers on one mission, split between two players | 13/13 |
-  | `stronghold`, `chosenassault` | 2 | a Chosen stronghold; the Chosen attack on the Avenger | 13/13, 13/13 (twice after the fix) |
-  | `finalmission` | 2 | the final mission's map, three rounds | 13/13 |
-  | `avatarmc` | 2 | an Avatar mind-controls a guest's soldier; control ends on time | 17/17 (three times) |
-  | `relayleave` | 3 | a guest leaves while the host relays another guest's turn, rejoins | 16/16 |
-  | `soak` | 2 | four missions in a row with the Avenger in between; the guest reconnects after the host's long movie | 13/13 |
-  | `soakstory` | 2 | four missions with their objectives completed: the story moves on past the Blacksite | 14/14 |
-  | `soakstory8` | 2 | eight missions the same way, a Chosen retaliation among them | 22/22 (twice) |
-  | `guestaction` | 2 | a guest's soldier moves and shoots with the game's normal actions; every unit the same on both machines | 13/13 (three times) |
-  | `guestaction3` | 3 | the same with three players: one guest's move and shot reach the host and the other guest | 11/11 (twice) |
-  | `aiturnguest` | 2 | the enemy AI takes its turn against the squad; every unit the same on both machines afterwards | 8/8 (twice) |
-  | `corruptguest` | 2 | a Chosen Warlock's Corrupt kills a guest's soldier, which rises as an enemy zombie on both machines | 11/11 |
-  | `joinxcom` | 2 | a soldier joins XCOM mid-mission: the host controls it in its own turn, the guest cannot select it | 12/12 |
-  | `joinwatchdog` | 2 | a guest that gets no campaign after joining reconnects by itself | 9/9 |
-  | `joinsync` | 2 | the host's mod list reaches a refused guest; CoopSync on the guest plans the change | 9/9 |
-  | `joinsyncapply` | 2 | the whole auto-download path with a stand-in for Steam: refused, CoopSync fetches the host's mod and switches the guest's mods, the guest restarts and joins | 17/17 |
-  | `soakstory16` | 2 | sixteen missions with whole histories: the guest misses missions 14 and 15 (history size limit, see Known issues) | 34/38 |
-  | `overwatchhost`, `overwatchguest` | 2 | an enemy on overwatch fires at a soldier walking into view: the host's, then a guest's | 8/8 (twice), 8/8 (twice, after the fix) |
-  | `stunguest` | 2 | a Stun Lancer stuns a guest's soldier; it loses one action and the stun ends | 14/14 (twice) |
-  | `dazeguest` | 2 | a Chosen Warlock's Mind Scorch dazes a guest's soldier: two turns lost, free on the third | 15/15 |
-  | `vialwalk` | 2 | Blacksite: a guest's soldier walks to the vial and takes it with the game's own action; both machines play the story moment; the objective is used on both machines; every soldier's model on its tile | 18/18 |
-  | `soakpartial` | 2 | four missions where every history after the first goes as a partial history (experiment, off by default) | 17/17 |
-  | `soakpartial16` | 2 | sixteen missions with partial histories: the guest plays all 16, histories up to 757 KB | 41/41 |
-  | `guestvis` | 2 | a guest's soldiers' models follow their moves on the guest; the ping key binding | 15/15 |
-  | `crashhunt` | 2 | enemy overwatch before each guest turn, to catch the rare guest crash | 6/6 (14 times, no crash) |
+  | Scenario | Players | What it covers | Result | When |
+  |---|---|---|---|---|
+  | `squad`, `exp12` | 2 | ownership tags, squad slot rules, group split | 13/13, 11/11 | earlier |
+  | `join`, `joinmismatch` | 2 | join with matching mods, refusal on a mismatch | 7/7, 5/5 | 11-25 |
+  | `join3` | 3 | two guests join one host | 12/12 | 11-27 |
+  | `buttons` | 2 | the co-op entries on the main menu, "Join a friend" in the lobby, the host's player panel | 15/15 | 11-25 |
+  | `features` | 2 | Owner and slot buttons, guest rights, chat | 22/22 | 11-25 |
+  | `guestrestart` | 3 | both guests restart, get their slots back | 19/19 | 11-25 |
+  | `mission` | 2 | full rounds with enemies, pings, chat, camera, flags, banner | 54/54 | 11-25 |
+  | `dropguest` | 2 | guest killed in its turn, host takes over, guest rejoins | 15/15 | 11-25 |
+  | `missionend` | 2 | mission end and return to the Avenger | 11/11 | 11-25 |
+  | `mission3`, `mission4` | 3, 4 | guest-to-guest handover through the host | 27/27, 33/33 | 11-27, earlier |
+  | `ironman` | 2 | Ironman autosave, load, rejoin | 18/18 | 11-25 |
+  | `saveload` | 2 | save, load, second mission | 18/18 | 11-25 |
+  | `midsave` | 2 | save inside a mission, load, rejoin | 16/16 | 11-25 |
+  | `mindcontrol`, `mcall` | 2 | mind control of and by a guest's soldiers, freeing them | 24/24, 16/16 | 11-25 |
+  | `lostchosen` | 2 | the Lost; a Chosen kidnaps a guest's soldier, mission end | 21/21 | 11-25 |
+  | `retaliation`, `blacksite` | 2 | Chosen retaliation (resistance, civilians); a story mission | 14/14, 14/14 | 11-25 |
+  | `avengerdefense`, `avdefreinf` | 2 | Avenger defense; its reinforcements go to their owner | 16/16, 16/16 | 11-25 |
+  | `flankcrit` | 2 | flank crits use the single-player bonus (shot breakdown, host and guest) | 10/10 | 11-25 |
+  | `bigsquad` | 2 | 12 soldiers on one mission, split between two players | 13/13 | 11-25 |
+  | `stronghold`, `chosenassault` | 2 | a Chosen stronghold; the Chosen attack on the Avenger | 13/13, 13/13 | 11-25 |
+  | `finalmission` | 2 | the final mission's map, three rounds | 13/13 | 11-25 |
+  | `avatarmc` | 2 | an Avatar mind-controls a guest's soldier; control ends on time | 17/17 | 11-25 |
+  | `relayleave` | 3 | a guest leaves while the host relays another guest's turn, rejoins | 16/16 | 11-27 |
+  | `soak` | 2 | four missions in a row with the Avenger in between; the guest reconnects after the host's long movie | 13/13 | 11-25 |
+  | `soakstory` | 2 | four missions with their objectives completed: the story moves on past the Blacksite | 14/14 | 11-25 |
+  | `soakstory8` | 2 | eight missions the same way, a Chosen retaliation among them | 22/22 (twice) | earlier |
+  | `guestaction` | 2 | a guest's soldier moves and shoots with the game's normal actions; every unit the same on both machines | 13/13 | 11-25 |
+  | `guestaction3` | 3 | the same with three players: one guest's move and shot reach the host and the other guest | 11/11 | 11-25 |
+  | `aiturnguest` | 2 | the enemy AI takes its turn against the squad; every unit the same on both machines afterwards | 8/8 | 11-25 |
+  | `corruptguest` | 2 | a Chosen Warlock's Corrupt kills a guest's soldier, which rises as an enemy zombie on both machines | 11/11 | 11-25 |
+  | `joinxcom` | 2 | a soldier joins XCOM mid-mission: the host controls it in its own turn, the guest cannot select it | 12/12 | 11-25 |
+  | `joinwatchdog` | 2 | a guest that gets no campaign after joining reconnects by itself | 9/9 | 11-25 |
+  | `joinsync` | 2 | the host's mod list reaches a refused guest; CoopSync on the guest plans the change | 9/9 | 11-25 |
+  | `joinsyncapply` | 2 | the whole auto-download path with a stand-in for Steam: refused, CoopSync fetches the host's mod and switches the guest's mods, the guest restarts and joins | 17/17 | 11-25 |
+  | `soakstory16` | 2 | sixteen missions with whole histories: the guest misses missions 14 and 15 (history size limit, see Known issues) | 34/38 | earlier |
+  | `overwatchhost`, `overwatchguest` | 2 | an enemy on overwatch fires at a soldier walking into view: the host's, then a guest's | 8/8, 8/8 (once 5/8: no shot, cause unknown) | 11-25 |
+  | `stunguest` | 2 | a Stun Lancer stuns a guest's soldier; it loses one action and the stun ends | 14/14 | 11-25 |
+  | `dazeguest` | 2 | a Chosen Warlock's Mind Scorch dazes a guest's soldier: two turns lost, free on the third | 15/15 | 11-25 |
+  | `vialwalk` | 2 | Blacksite: a guest's soldier walks to the vial and takes it with the game's own action; both machines play the story moment; the objective is used on both machines; every soldier's model on its tile | 18/18 | 11-25 |
+  | `soakpartial` | 2 | four missions where every history after the first goes as a partial history (experiment, off by default) | 17/17 | 11-25 |
+  | `soakpartial16` | 2 | sixteen missions with partial histories: the guest plays all 16, histories up to 757 KB | 41/41 | earlier |
+  | `guestvis` | 2 | a guest's soldiers' models follow their moves on the guest; the ping key binding | 17/17 | 11-25 |
+  | `crashhunt` | 2 | enemy overwatch before each guest turn, to catch the rare guest crash | 6/6 (14 times, no crash) | earlier |
+  | `avengerfeed`, `presenceshow` | 2 | what the other player does, on the Avenger and in a mission (player panel, presence) | 13/13, 11/11 | 11-25 |
+  | `loadshow`, `overlaytest` | 2 | the guest's mission loading screen step by step; that it draws on the main menu and the Avenger | 16/16, 4/4 | 11-25 |
+  | `pingshow` | 2 | pings drawn on screen, in either player's turn | 11/11 | 11-25 |
+  | `squadshow` | 2 | guests watch the host pick the squad | 7/7 | 11-25 |
+  | `gatelaunch` | 2 | a mission launch with the mod check on | 7/7 | 11-25 |
+  | `controltest` | 2 | control on the Avenger: ask (no, then yes), the host takes it back, a guest edits its own soldier, Barracks owner tags | 17/17 | 11-25 |
+  | `menushow` | 1 | the main menu row and the soldiers in the menu scene | 5/5 | 11-25 |
+  | `lobbycamp`, `lobbyscen3` | 2, 3 | the lobby: friends join, the host starts a new balanced campaign or a scenario, the friends follow | 12/12, 27/27 | 11-25 |
+  | `lobbyleave` | 2 | a friend leaves the lobby and joins again; the host closes the lobby | 9/9 | 11-25 |
+  | `lobbyload` | 2 | the lobby's Load: the friends in the lobby get the loaded campaign; the host quits, the friend does not crash | 8/8 | 11-25 |
+  | `lobbynewreal` | 2 | a new campaign through the game's own difficulty screen (tutorial off); the friend joins the first mission | 10/10 | 11-25 |
+  | `balanced`, `balancedsquad`, `balanced3` | 2, 2, 3 | balanced campaign: squad size per player, scaled enemies; 8 slots with robojumper's squad select; three players | 15/15, 9/9, 16/16 | 11-25 |
+  | `scenario`, `scenarioend`, `scenariomid` | 2 | scenario mode: early stage; the end, back to the menu; mid stage (force level, rank, magnetic weapons) | 15/15, 9/9, 16/16 | 11-25 |
+  | `chunktest`, `joinchunk`, `missionchunk` | 2 | chunked history sends: the format check; a join; a mission and its end, chunked only | 12/12, 10/10, 14/14 | 11-25 |
+  | `soakfresh16` | 3 | sixteen missions with chunked sends; a new guest joins after mission 13 | 47/48 (48/48 with the fixed check, see NOTES.md) | 11-27 |
+  | `mission3chunk` | 3 | mission3 with chunked sends: the mission send and every relay of a guest's turn go in chunks | 22/22 | 11-27 |
 
 - Two-PC test kit (not published): the runner can run the host alone and grade a guest log from another PC;
   a script on the guest PC makes its own test copy and runs the guest bot. Rehearsed on one PC over its network
@@ -305,7 +318,9 @@ and test instructions are in the mod repo README.
 - A rare guest crash as its turn begins (`XCom2.exe+0xb158a7`, 2 of many runs; not reproduced in 14 runs of the
   scenario built from its setup, nor in a 16-mission soak). From the crash dump and the disassembly: the game's
   visibility update read a unit's cached visibility interface and found it empty. The mod now logs any object whose
-  cache is empty after each handoff; it found none in those runs. Root cause unknown.
+  cache is empty after each handoff; it found none in those runs. Root cause unknown. A second address of the same
+  kind (`XCom2.exe+0xae6b20`, a lookup of an object by id in the newest history came back empty) crashed a guest 3 s
+  into its turn in mission 12 of one 16-mission soak (2026-11-26); the host took over its soldiers and went on.
 - A second guest crash, seen once (`XCom2.exe+0x4ce279`, before the guest-visuals fix): a lookup in a history
   frame, the same function as an earlier crash while the history was written. Not seen since.
 - Timed effects lost their countdown after a handoff and never ended. They are now registered again

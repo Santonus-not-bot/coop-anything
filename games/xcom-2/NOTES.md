@@ -2476,9 +2476,109 @@ whole send of the campaign would be well over the ~670 KB ceiling. 43/47, 121 mi
   unknown until the rerun. `vialwalk` 17/18: out of time at turn 16 of 21; `run_batch.ps1` passes its own 1500 s limit, which
   overrides the scenario's own (2400 s).
 
-#### Build 20261125-154749 (main-menu reconnect fix), stopped partway
+#### Build 20261125-154749 (main-menu reconnect fix)
 
 - `lobbyload` 8/8, `lobbynewreal` 10/10: a new campaign through the real difficulty screen (tutorial off), the
   friend in the lobby reconnected after the first mission was built and loaded it as a watcher; no crash.
-- Not run yet on this build: `lobbyleave`, `soak`, `join3`, `soakfresh16` (the long run with the fresh guest),
-  `vialwalk` with its own time limit.
+- `join3` 12/12, `guestrestart` 19/19, `dropguest` 15/15, `soak` 13/13 (four missions; the guest reconnected after
+  each), `vialwalk` 18/18 with its own 2400 s limit (all 21 turns).
+- `lobbyleave` 8/9 first: the friend's bot quit at 140 s, 3 s before the host closed the lobby at 143 s (the friend's
+  copy had loaded 12 s slower than in the passing run), so it never saw the close. A test timing race, not the mod:
+  each step's delay counts from the step before it, so both scripts ended within a second of each other. The friend
+  now stays 25 s longer: 9/9.
+- `soakfresh16` 38/48 (151 min). Observed:
+  - Chunked sends: 29 "chunked base + delta", none fell back to a whole send; bases from 367 KB to 817 KB (the
+    largest yet).
+  - The main-menu reconnect fix held: B came back after every mission up to 12, six times after one or more
+    connection attempts timed out (each retried, as it should).
+  - B crashed in mission 12, 3 s after taking over its first turn on a freshly loaded map (native crash,
+    `XCom2.exe+0xae6b20`, access violation reading `0x50`). The host saw the connection close, took over B's
+    soldiers and played missions 12 and 13 alone.
+  - C joined fresh after mission 13 (660 KB base in chunks, then the delta) and, B being gone, got B's slot 1 and its
+    soldiers (correct: the slot was no longer awaited). C's bot only watches, so when it was handed B's soldiers'
+    turn it never ended it; the host's bot waited 600 s twice, then its forced mission win did nothing (not its turn),
+    and every later step ran against the wrong screen. The 10 failed checks (B's marks for missions 12-14, the host's
+    for 15, the end fingerprints) all follow from B's crash.
+  - Also seen (minor): with no guest connected, the host's Avenger merges retry every 5 s ("merge not acknowledged"),
+    44 times here, 53 in an earlier run; `CoopSession.IsConnected()` seems to count the open server. Harmless, not
+    fixed.
+- The crash, by hand from the minidump (no disassembler on this PC; the helper `minidump_info.py` and a byte dump of
+  the test copy's exe). Observed: the faulting instruction is `mov rcx, [rax+0x50]` right after a call to
+  `+0xcb3ec0` with arguments (history `rsi`, an object id read from an array, `1`, `-1`), and `rax = 0`: the lookup
+  returned nothing. The caller reaches it through a virtual call at `+0xc17dcd`; the frames below it are in the
+  script VM's range. Derived (guess): game code asked the newest history for an object id this guest did not have,
+  the same kind of fault as the earlier rare guest crash (`+0xb158a7`, a lookup by id and history index returning
+  null). The mod's missing-effect check logged nothing. Unknown: which object, and why. One crash in three
+  `soakfresh16` runs (about 30 guest missions).
+- `soakfresh16` again on the same build, 40/48 (151 min). A new bug, with three players in one mission:
+  - The slot reservation held: B and C reconnected 0.15 s apart when the host reopened after mission 13; B got its
+    slot 1 back, C got slot 2.
+  - C's first chunked send was lost: the host's send of the campaign base (`guests=1`, B only: C had connected
+    0.05 s before but not said hello yet) also reached C's connection, which the engine closed 0.6 s later; C had
+    taken 296 of 1,565 chunks and never saw the close. Guess: chunk pacing only waits for the acks of the guests
+    counted at the start, so nothing slowed the stream to C's new connection and the engine dropped it (no reason
+    logged). C's join watchdog reconnected it 150 s later, it took a 767 KB base in 1.3 s and, the host being in
+    mission 14 by then, entered it as a watcher. Not fixed (it recovers by itself).
+  - The stall: in mission 14, B handed its turn back and the host relayed B's frames to both guests as a whole
+    history (`SendRelay`, `SendHistory`): 772 KB, over the ceiling where a whole send never arrives. Neither guest got
+    it, the host's next handoff to B waited behind it and never arrived either, and the mission stood still until the
+    host's bot forced its end. No earlier soak had three players in one mission past mission 13.
+  - Fix (build 20261126-081244): with chunked sends on, the relay goes out as the host's base in chunks plus a "whole"
+    delta, the path the mission and campaign sends use. After the host applied the guest's frames its base is its
+    whole history, so every guest takes it as its own base and the delta applies on each. A timed-out chunked send
+    falls back to the whole send. New scenario `mission3chunk` (mission3 with chunked sends). Its first run (build
+    20261126-110519) gave 20/22: every relay went out in chunks and was acknowledged (407-429 KB, about 0.6 s each),
+    but the mission send before the first turn stalled and fell back to the whole send after 90 s. Cause: the hello of
+    the last guest back makes the host start the send at once (`CoopLink.HostGuestJoined`), and the host only sent
+    that guest its slot (`CoopSlotFor`) afterwards. C got the chunk start and the first 32 chunks before its slot, so
+    it acked them as the default slot 1; the host never saw an ack from slot 2 and stopped sending. With two players
+    the default slot is the right one, which is why `missionchunk` never showed it. Fix (build 20261126-141846): the
+    host sends `CoopSlotFor` before `HostGuestJoined`. `mission3chunk` then passed 22/22 on 20261126-141846 and again
+    on 20261127-032618: the mission send and every relay went out in chunks and every guest acknowledged them.
+- `soakfresh16` on build 20261126-081244, 45/48 (151 min). The chunked relay held: in mission 14 the host relayed
+  761 KB and 795 KB bases to two guests in chunks, each in about 1.5 s, and the mission went on. Three failures,
+  one chain:
+  - After mission 14, C asked for its slot 2 back, but the host dropped the claim (`Want >= PlayerCount`: the
+    campaign was started for two players) and gave it a free slot. Slot 2 was the one being awaited, so it got
+    slot 3, and the host waited the full 120 s for slot 2 on the Avenger. At the next launch it waited for [3,1];
+    C asked for slot 3, got slot 2 for the same reason, and the host waited for slot 3 for 120 s inside mission 15.
+  - Meanwhile the host's first turn ended (9 s after the guests joined) and it handed initiative to B with a
+    partial history. Neither guest had a base yet (the mission history only goes out when every guest of the launch
+    is back), so both logged `Base size mismatch: 809446 != 0` and asked for a new history. The handoff waited for
+    their acks until both guests' join watchdogs reconnected them 150 s later. They then got the mission history,
+    but B was out of step from then on and missed mission 16 (`mark guest back from mission 16`). The end
+    fingerprints differ in time and intel only (the host played on alone).
+  - Later in mission 15 C reconnected, asked for slot 2 again, had the claim dropped again and got B's slot 1 (B was
+    away). When B came back asking for slot 1, its nonce still mapped to slot 1, which was connected (by C), so the
+    host took it for a reconnect of the same game: two guests on slot 1. B never got back into a mission.
+  - Fixes (build 20261126-110519), in `CoopJoin.HostOnHello`: the host keeps a wanted slot above `PlayerCount` when
+    it gave that slot out before or is waiting for it; giving a slot to a guest clears it from every other guest's
+    hello entry, so an older guest's hello can no longer pass as a reconnect to it. In `TurnPhase_CoopHandoff`: a
+    host handoff first waits, up to 300 s, until the mission history went out and every guest acknowledged it or
+    left (`MissionHistoryDelivered`).
+- `soakfresh16` on build 20261126-141846, 37/48 (151 min). Two more bugs, both on the path where the new guest
+  joins a running mission (this run it connected 3 s into mission 13; earlier runs it came in on the Avenger):
+  - The new guest ignored the chunked mission send. It had been idle on the main menu for 80 minutes, where no
+    `CoopLinkTimer` runs, and the chunk listener (`CoopChunks.Init`) was only registered on that timer's first tick,
+    a second after connecting. The host sends at once to a guest joining a running mission (on the Avenger it waits
+    3 s), so "CoopChunkBegin" arrived 0.5 s before the listener. The send waited 90 s for that guest and fell back to
+    a whole send of 678 KB, over the ceiling, which never reached it. The next relay (chunked) gave it the history.
+    Fix: `CoopLinkTimer.Ensure` registers the chunk listener at once.
+  - The handoff after that waited for the rest of the mission. The relay of B's turn went to the new guest while it
+    was still outside the mission, and a guest outside a mission does not ack a relay, so the host's relay acks
+    stayed open. The host's next handoff then took both guests' acks for relay acks, never counted them, and stood
+    until the host's bot ended the mission 600 s later; B was out of step from then on. Fix: a host handoff drops
+    relay acks still missing (its own partial history brings every guest up to date), and while it hands over an
+    ack counts for the relay only from a guest the relay still waits for (`CoopTacticalNet`, build 20261127-032618).
+  - Not fixed: the 90 s fallback of a chunked send is a whole send, which cannot arrive above the ceiling either.
+- Build 20261127-032618: `mission3chunk` 22/22, `relayleave` 16/16, `mission3` 27/27, `join3` 12/12, and
+  `soakfresh16` 47/48 in 105 min (every earlier run took the full 151 min because of stalls). All 16 missions ran with
+  no stall, every guest mission ended with the guests back, and the host and B ended with the same fingerprint.
+  - The one failure was the runner's, not the mod's. C's script joins after 80 minutes, plays one mission, and quits.
+    The fingerprint check compared C's last fingerprint with the host's after mission 16, so it could only pass if
+    C quit after the host's last mission. This check failed in earlier runs too, alongside real bugs. Here the host
+    played two more missions after C quit. At C's quit
+    the host's own `@histinfo` had the same frame count (8705) and the same fingerprint as C's.
+  - Runner fix: a copy listed in `fphad` (C in `soakfresh16`) must end with a fingerprint the host had: its `@histinfo`
+    at the same frame count, or else one it sent in a campaign batch. Rechecked on the kept logs: 48/48. A copy of C's
+    log with one supply value changed fails the check, as it should.
