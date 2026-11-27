@@ -6,7 +6,7 @@
 | Versions tested | Steam, XCOM 2 buildid 8270065 (changelist 699444), War of the Chosen + all DLC, Windows x64 |
 | Projects | Team Dragonpunk "Tactical Co-Op" (2016-17, abandoned); WOTC Co-op Campaign: strategy prototype https://github.com/EvilMask587/xcom2-wotc-coop-campaign, extended to missions, up to 4 players and three co-op modes in a fork: https://github.com/Santonus-not-bot/xcom2-wotc-coop-campaign |
 | QA level | automated (two to four game copies on one PC, direct IP; three scenarios also on two PCs; see QA) |
-| Last updated | 2026-11-25 |
+| Last updated | 2026-11-27 |
 
 ## Where things stand
 
@@ -81,9 +81,9 @@ real Steam Workshop subscription for a guest are untested.
 ## What we changed
 
 Mod: https://github.com/EvilMask587/xcom2-wotc-coop-campaign (code only, no game files) has the
-strategy prototype. The campaign and mission co-op below is public in the fork
-https://github.com/Santonus-not-bot/xcom2-wotc-coop-campaign; the modes, the menu and the lobby (2026-11-24/25) are
-not pushed yet. Design, results per build and every decision: [DESIGN-campaign-coop.md](DESIGN-campaign-coop.md);
+strategy prototype. Everything below (campaign and mission co-op, the modes, the menu, the lobby and chunked sends)
+is public in the fork https://github.com/Santonus-not-bot/xcom2-wotc-coop-campaign (commit 456f3a1, build
+20261127-032618). Design, results per build and every decision: [DESIGN-campaign-coop.md](DESIGN-campaign-coop.md);
 every test run: [NOTES.md](NOTES.md).
 
 **Strategy prototype (2026-10):**
